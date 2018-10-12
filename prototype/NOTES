@@ -1,0 +1,7 @@
+Run like this:
+
+# create the submission
+rm -rf demo; bash -x submit.sh one two three four; ll demo
+
+# submit
+bash -c "cd demo && condor_submit datalad.submit"
