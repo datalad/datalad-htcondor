@@ -12,7 +12,9 @@ __docformat__ = 'restructuredtext'
 
 
 import logging
+from six import iteritems
 
+from datalad.interface.base import Interface
 from datalad.interface.run import Run
 from datalad.interface.utils import eval_results
 from datalad.interface.base import build_doc
@@ -26,11 +28,12 @@ lgr = logging.getLogger('datalad.htcondor.htcprepare')
 
 
 @build_doc
-class HTCPrepare(Run):
+class HTCPrepare(Interface):
     """TODO
     """
     _params_ = dict(
-        Run._params_.copy(),
+        {k: v for k, v in iteritems(Run._params_)
+         if not k == 'rerun'},
         singularity=Parameter(
             args=("--singularity",),
             doc="""ADDME"""),
@@ -48,8 +51,7 @@ class HTCPrepare(Run):
             explicit=False,
             message=None,
             sidecar=None,
-            singularity=None,
-            rerun=False):
+            singularity=None):
         if rerun:
             raise
 
