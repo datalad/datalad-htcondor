@@ -13,7 +13,10 @@ __docformat__ = 'restructuredtext'
 
 import logging
 import tempfile
-from six import iteritems
+from six import (
+    iteritems,
+    text_type,
+)
 import shlex
 import stat
 import os.path as op
@@ -172,7 +175,7 @@ def get_singularity_jobspec(cmd):
     try:
         stdout, stderr = runner.run(
             # stringification only needed for pythons older than 3.6
-            ['singularity', 'exec', str(exec_path), 'cat', '/singularity'],
+            ['singularity', 'exec', text_type(exec_path), 'cat', '/singularity'],
             log_stdout=True,
             log_stderr=True,
             expect_stderr=True,
@@ -270,7 +273,7 @@ class HTCPrepare(Interface):
 
         # location of to-be-created submission
         submission_dir = ut.Path(tempfile.mkdtemp(
-            prefix='submit_', dir=str(subroot_dir)))
+            prefix='submit_', dir=text_type(subroot_dir)))
 
         # is this a singularity job?
         singularity_job = get_singularity_jobspec(cmd_expanded)
@@ -342,11 +345,11 @@ class HTCPrepare(Interface):
                     # separate file paths with the null-byte to be
                     # robust against exotic filenames
                     f.write('\0')
-                f.write(str(p['path']))
+                f.write(text_type(p['path']))
             transfer_files_list.append('input_files')
 
         (submission_dir / 'dataset_path').write_text(
-            str(ds.pathobj) + op.sep)
+            text_type(ds.pathobj) + op.sep)
         transfer_files_list.append('dataset_path')
 
         with (submission_dir / 'cluster.submit').open('w') as f:
