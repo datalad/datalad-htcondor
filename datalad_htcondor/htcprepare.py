@@ -27,6 +27,8 @@ from datalad.interface.base import (
 from datalad.interface.run import (
     Run,
     format_command,
+    GlobbedPaths,
+    _install_and_reglob,
 )
 from datalad.interface.utils import eval_results
 from datalad.interface.results import get_status_dict
@@ -305,6 +307,44 @@ class HTCPrepare(Interface):
                 'datalad_htcondor',
                 'resources/scripts/post_posix.sh'))
         make_executable(submission_dir / 'post.sh')
+
+        # API support selection (bound dataset methods and such)
+        # internal iport to avoid circularities
+        from datalad.api import (
+            rev_status as status,
+        )
+
+        # TODO RF: straight copy from `run` (minus expand-True)
+        inputs = GlobbedPaths(inputs, pwd=pwd, expand=True)
+
+        if inputs:
+            for res in _install_and_reglob(ds, inputs):
+                yield res
+            for res in ds.get(inputs.expand(full=True), on_failure="ignore"):
+                if res.get("state") == "absent":
+                    lgr.warning("Input does not exist: %s", res["path"])
+                else:
+                    yield res
+        # TODO end straight copy
+
+        with (submission_dir / 'input_files').open('w') as f:
+            for p in ds.rev_status(
+                    path=inputs.expand(full=True),
+                    # TODO do we really want that True? I doubt it
+                    # this might pull in the world
+                    recursive=False,
+                    # we would have otherwise no idea
+                    untracked='no'):
+                if f.tell():
+                    # separate file paths with the null-byte to be
+                    # robust against exotic filenames
+                    f.write('\0')
+                f.write(str(p['path']))
+            transfer_files_list.append('input_files')
+
+        with (submission_dir / 'dataset_path').open('w') as f:
+            f.write(str(ds.pathobj) + op.sep)
+            transfer_files_list.append('dataset_path')
 
         with (submission_dir / 'cluster.submit').open('w') as f:
             f.write(submission_template.format(

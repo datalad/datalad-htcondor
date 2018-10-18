@@ -6,8 +6,21 @@
 
 set -e -u
 
-ls -la >> PRE_stamp
+echo 'PREPRE' >> PRE_stamp
 
-# TODO if inputfile specification is available in the exec dir
-# loop over it and obtain all files via condor_chirp
-#$(condor_config_val LIBEXEC)/condor_chirp fetch /etc/passwd localfile
+# if there is no input spec we can go home early
+[ ! -f input_files ] && exit 0
+
+chirp_exec="$(condor_config_val LIBEXEC)/condor_chirp"
+
+dspath_prefix="$(cat dataset_path)"
+
+# obtain input files
+mkdir dataset
+while IFS= read -rd '' file; do
+  mkdir -p dataset/"$(dirname ${file:${#dspath_prefix}})"
+  "${chirp_exec}" fetch "${file}" dataset/"${file:${#dspath_prefix}}"
+done < input_files
+
+echo 'DONE -- FINAL STATE' >> PRE_stamp
+ls -Rla >> PRE_stamp
