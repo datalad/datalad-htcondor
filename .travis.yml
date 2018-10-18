@@ -23,8 +23,8 @@ env:
     - COVERAGE=coverage
     - DATALAD_DATASETS_TOPURL=http://datasets-tests.datalad.org
   matrix:
-    - DATALAD_REPO_DIRECT=yes
     - DATALAD_REPO_VERSION=5
+    - DATALAD_REPO_VERSION=6
 
 
 before_install:
@@ -34,10 +34,16 @@ before_install:
   - bash <(wget -q -O- http://neuro.debian.net/_files/neurodebian-travis.sh)
   - travis_retry sudo apt-get update -qq
   - travis_retry sudo apt-get install eatmydata  # to speedup some installations
+  # preconfigure condor package for a personal condor installation (localhost only)
+  - sudo debconf-set-selections -v datalad_htcondor/tests/htcondor_dconf_selections
 
 install:
+  # HTCondor
+  - travis_retry sudo eatmydata apt-get install htcondor
+  - sudo service condor start
   # Install standalone build of git-annex for the recent enough version
-  - travis_retry sudo eatmydata apt-get install zip pandoc
+  - travis_retry sudo eatmydata apt-get install zip pandoc singularity-container
+
   # for metadata support
   - git config --global user.email "test@travis.land"
   - git config --global user.name "Travis Almighty"
@@ -46,6 +52,10 @@ install:
   #- pip install 'sphinx>=1.6.2'
   # So we could test under sudo -E with PATH pointing to installed location
   - sudo sed -i -e 's/^Defaults.*secure_path.*$//' /etc/sudoers
+  # give condor some time to fire up
+  - condor_status
+  # perform a test submission
+  - condor_run 'uname -a'
 
 script:
   # Verify that setup.py build doesn't puke
