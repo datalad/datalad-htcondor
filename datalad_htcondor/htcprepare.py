@@ -171,7 +171,8 @@ def get_singularity_jobspec(cmd):
     # we have singularity
     try:
         stdout, stderr = runner.run(
-            ['singularity', 'exec', exec_path, 'cat', '/singularity'],
+            # stringification only needed for pythons older than 3.6
+            ['singularity', 'exec', str(exec_path), 'cat', '/singularity'],
             log_stdout=True,
             log_stderr=True,
             expect_stderr=True,
@@ -269,17 +270,18 @@ class HTCPrepare(Interface):
 
         # location of to-be-created submission
         submission_dir = ut.Path(tempfile.mkdtemp(
-            prefix='submit_', dir=subroot_dir))
+            prefix='submit_', dir=str(subroot_dir)))
 
         # is this a singularity job?
         singularity_job = get_singularity_jobspec(cmd_expanded)
         if not singularity_job:
             # TODO
+            import pdb; pdb.set_trace()
             pass
         else:
             # link the container into the submission dir
             (submission_dir / 'singularity.simg').symlink_to(
-                singularity_job[0])
+                singularity_job[0].resolve())
             transfer_files_list.append('singularity.simg')
             # arguments of the job
             job_args = singularity_job[1]
