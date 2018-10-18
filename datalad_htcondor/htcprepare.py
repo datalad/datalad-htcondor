@@ -59,7 +59,7 @@ from datalad_revolution.dataset import (
 lgr = logging.getLogger('datalad.htcondor.htcprepare')
 
 
-submission_template = """\
+submission_template = u"""\
 Universe     = vanilla
 Executable   = {executable}
 environment  = "{environment}"
@@ -344,7 +344,7 @@ class HTCPrepare(Interface):
                 if f.tell():
                     # separate file paths with the null-byte to be
                     # robust against exotic filenames
-                    f.write('\0')
+                    f.write(u'\0')
                 f.write(text_type(p['path']))
             transfer_files_list.append('input_files')
 
@@ -361,7 +361,7 @@ class HTCPrepare(Interface):
                 **submission_defaults
             ))
 
-            f.write('\narguments = "{}"\nqueue\n'.format(
+            f.write(u'\narguments = "{}"\nqueue\n'.format(
                 # TODO deal with single quotes in the args
                 ' '.join("'{}'".format(a) for a in job_args)
             ))
