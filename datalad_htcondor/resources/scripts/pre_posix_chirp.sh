@@ -6,7 +6,9 @@
 
 set -e -u
 
-echo 'PREPRE' >> PRE_stamp
+# minimum input/output setup
+mkdir stamps
+mkdir dataset
 
 # if there is no input spec we can go home early
 [ ! -f input_files ] && exit 0
@@ -16,11 +18,12 @@ chirp_exec="$(condor_config_val LIBEXEC)/condor_chirp"
 dspath_prefix="$(cat dataset_path)"
 
 # obtain input files
-mkdir dataset
 while IFS= read -rd '' file; do
   mkdir -p dataset/"$(dirname ${file:${#dspath_prefix}})"
   "${chirp_exec}" fetch "${file}" dataset/"${file:${#dspath_prefix}}"
 done < input_files
 
-echo 'DONE -- FINAL STATE' >> PRE_stamp
-ls -Rla >> PRE_stamp
+echo 'DONE -- FINAL STATE' >> stamps/PRE_stamp
+ls -Rla >> stamps/PRE_stamp
+
+touch stamps/prep_complete

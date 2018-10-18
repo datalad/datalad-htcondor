@@ -5,8 +5,13 @@
 
 set -e -u
 
-touch POST_stamp
-
 # TODO if outputfile specification is available in the exec dir
 # loop over it and prepare a return package. If not, return everything
 # that has changes
+prep_stamp="stamps/prep_complete"
+
+if [ -f "$prep_stamp" ]; then
+    find "dataset" -type f -newer "$prep_stamp" > stamps/togethome
+fi
+
+tar --files-from stamps/togethome -czf output.tar.gz

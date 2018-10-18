@@ -9,4 +9,10 @@ set -u -e
 HOME="$(readlink -f .)"
 export HOME
 
-singularity exec --containall -H "$HOME" --pwd "$HOME" "$@"
+# have an artificial home for the nobody user and make payload
+# run in the root of the dataset inside the container
+singularity exec \
+  --containall -H "$HOME" \
+  -B "$(readlink -f dataset)":"/dataset" \
+  --pwd "/dataset" \
+  "$@"
