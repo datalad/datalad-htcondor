@@ -260,13 +260,13 @@ class HTCPrepare(Interface):
         ]
 
         # where all the submission packs live
-        subroot_dir = ds.pathobj / GitRepo.get_git_dir(ds.path) / 'htc'
-        subroot_dir.mkdir(exist_ok=True)
+        subroot_dir = \
+            ds.pathobj / GitRepo.get_git_dir(ds.path) / 'datalad' / 'htc'
+        subroot_dir.mkdir(parents=True, exist_ok=True)
 
         # location of to-be-created submission
         submission_dir = ut.Path(tempfile.mkdtemp(
-            prefix='submit_',
-            dir=ds.pathobj / GitRepo.get_git_dir(ds.path) / 'htc'))
+            prefix='submit_', dir=subroot_dir))
 
         # is this a singularity job?
         singularity_job = get_singularity_jobspec(cmd_expanded)
