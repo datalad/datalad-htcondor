@@ -35,6 +35,7 @@ from datalad.interface.run import (
 )
 from datalad.interface.utils import eval_results
 from datalad.interface.results import get_status_dict
+from datalad.support import json_py
 
 from datalad.support.param import Parameter
 from datalad.support.constraints import EnsureNone
@@ -389,6 +390,28 @@ class HTCPrepare(Interface):
                 # TODO deal with single quotes in the args
                 ' '.join("'{}'".format(a) for a in job_args)
             ))
+
+        # dump the run command args into a file for re-use
+        # when the result is merged
+        # include even args that are already evaluated and
+        # acted upon, to be able to convince `run` to create
+        # a full run record that maybe could be re-run
+        # locally
+        json_py.dump(
+            dict(
+                cmd=cmd,
+                inputs=inputs,
+                outputs=outputs,
+                expand=expand,
+                explicit=explicit,
+                message=message,
+                sidecar=sidecar,
+                # report the PWD to, to given `run` a chance
+                # to be correct after the fact
+                pwd=pwd,
+            ),
+            text_type(submission_dir / 'runargs.json')
+        )
 
         yield get_status_dict(
             action='htc_prepare',
