@@ -28,12 +28,16 @@ def test_basic(path):
     res = ds.htc_prepare(
         # TODO relative paths must work too!
         cmd='{}/.datalad/environments/mycontainer/image bash -c "ls -laR > here"'.format(ds.path),
+        # '*' doesn't actually match anything, but we should be able
+        # to simply not transfer anything in such a case
         inputs=['*'],
         submit=True,
     )
     assert res[1]['action'] == 'htc_submit'
     # TODO it is a shame that we cannot pass pathobj through datalad yet
     submission_dir = ut.Path(res[0]['path'])
+    # no input_files spec was written
+    assert not (submission_dir / 'input_files').exists()
     # we gotta wait till the results are in
     while not (submission_dir / 'job_0' / 'logs' / 'err').exists():
         time.sleep(1)

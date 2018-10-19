@@ -333,20 +333,29 @@ class HTCPrepare(Interface):
                     yield res
         # TODO end straight copy
 
-        with (submission_dir / 'input_files').open('w') as f:
-            for p in ds.rev_status(
-                    path=inputs.expand(full=True),
-                    # TODO do we really want that True? I doubt it
-                    # this might pull in the world
-                    recursive=False,
-                    # we would have otherwise no idea
-                    untracked='no'):
-                if f.tell():
-                    # separate file paths with the null-byte to be
-                    # robust against exotic filenames
-                    f.write(u'\0')
-                f.write(text_type(p['path']))
-            transfer_files_list.append('input_files')
+        # it could be that an input expression does not expand,
+        # because it doesn't match anything. In such a case
+        # we need to filter out such globs to not confuse
+        # the status() call below that only takes real paths
+        inputs = [p for p in inputs.expand(full=True)
+                  if op.lexists(p)]
+        # now figure out what matches the remaining paths in the
+        # entire repo and dump a list of files to transfer
+        if inputs:
+            with (submission_dir / 'input_files').open('w') as f:
+                for p in ds.rev_status(
+                        path=inputs,
+                        # TODO do we really want that True? I doubt it
+                        # this might pull in the world
+                        recursive=False,
+                        # we would have otherwise no idea
+                        untracked='no'):
+                    if f.tell():
+                        # separate file paths with the null-byte to be
+                        # robust against exotic filenames
+                        f.write(u'\0')
+                    f.write(text_type(p['path']))
+                transfer_files_list.append('input_files')
 
         (submission_dir / 'dataset_path').write_text(
             text_type(ds.pathobj) + op.sep)
