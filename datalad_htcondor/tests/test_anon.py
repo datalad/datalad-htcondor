@@ -6,6 +6,7 @@ from datalad.api import (
     htc_prepare,
 )
 from datalad_revolution.dataset import RevolutionDataset as Dataset
+import datalad_revolution.utils as ut
 from datalad.tests.utils import (
     assert_result_count,
     with_tempfile,
@@ -31,7 +32,8 @@ def test_basic(path):
         submit=True,
     )
     assert res[1]['action'] == 'htc_submit'
-    submission_dir = res[0]['path']
+    # TODO it is a shame that we cannot pass pathobj through datalad yet
+    submission_dir = ut.Path(res[0]['path'])
     # we gotta wait till the results are in
     while not (submission_dir / 'job_0' / 'logs' / 'err').exists():
         time.sleep(1)

@@ -369,13 +369,13 @@ class HTCPrepare(Interface):
         yield get_status_dict(
             action='htc_prepare',
             status='ok',
-            refds=ds.pathobj,
-            path=submission_dir,
+            refds=text_type(ds.pathobj),
+            path=text_type(submission_dir),
             logger=lgr)
 
         if submit:
             try:
-                Runner(cwd=submission_dir).run(
+                Runner(cwd=text_type(submission_dir)).run(
                     ['condor_submit', 'cluster.submit'],
                     log_stdout=False,
                     log_stderr=False,
@@ -385,14 +385,14 @@ class HTCPrepare(Interface):
                 yield get_status_dict(
                     action='htc_submit',
                     status='ok',
-                    refds=ds.pathobj,
-                    path=submission_dir,
+                    refds=text_type(ds.pathobj),
+                    path=text_type(submission_dir),
                     logger=lgr)
             except CommandError as e:
                 yield get_status_dict(
                     action='htc_submit',
                     status='error',
                     message=('condor_submit failed: %s', exc_str(e)),
-                    refds=ds.pathobj,
-                    path=submission_dir,
+                    refds=text_type(ds.pathobj),
+                    path=text_type(submission_dir),
                     logger=lgr)
