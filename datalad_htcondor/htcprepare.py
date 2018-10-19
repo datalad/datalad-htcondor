@@ -357,6 +357,11 @@ class HTCPrepare(Interface):
                     f.write(text_type(p['path']))
                 transfer_files_list.append('input_files')
 
+        if outputs:
+            (submission_dir / 'output_globs').write_text(
+                u'\0'.join(outputs))
+            transfer_files_list.append('output_globs')
+
         (submission_dir / 'dataset_path').write_text(
             text_type(ds.pathobj) + op.sep)
         transfer_files_list.append('dataset_path')
