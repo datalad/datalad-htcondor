@@ -343,6 +343,7 @@ class HTCPrepare(Interface):
         # entire repo and dump a list of files to transfer
         if inputs:
             with (submission_dir / 'input_files').open('w') as f:
+                # TODO disable output renderer
                 for p in ds.rev_status(
                         path=inputs,
                         # TODO do we really want that True? I doubt it
@@ -355,11 +356,20 @@ class HTCPrepare(Interface):
                         # robust against exotic filenames
                         f.write(u'\0')
                     f.write(text_type(p['path']))
+                # we need a final trailing delimiter as a terminator
+                f.write(u'\0')
                 transfer_files_list.append('input_files')
 
         if outputs:
+            # write the output globs to a file for eval on the execute
+            # side
+            # XXX we may not want to eval them on the remote side
+            # at all, however. This would make things different
+            # than with local execute, where we also just write to
+            # a dataset and do not have an additional filter
             (submission_dir / 'output_globs').write_text(
-                u'\0'.join(outputs))
+                # we need a final trailing delimiter as a terminator
+                u'\0'.join(outputs) + u'\0')
             transfer_files_list.append('output_globs')
 
         (submission_dir / 'dataset_path').write_text(
