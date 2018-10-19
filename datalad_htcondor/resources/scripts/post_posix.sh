@@ -5,13 +5,26 @@
 
 set -e -u
 
+wdir="$(readlink -f .)"
+
 # TODO if outputfile specification is available in the exec dir
 # loop over it and prepare a return package. If not, return everything
 # that has changes
-prep_stamp="stamps/prep_complete"
+prep_stamp="${wdir}/stamps/prep_complete"
 
+
+# TODO check what reference point the output globs have and
+# run `find` in that directory
+# for now assume it is the dataset root
+cd dataset
 if [ -f "$prep_stamp" ]; then
-    find "dataset" -type f,l -newer "$prep_stamp" > stamps/togethome
+  # intentionally use no starting point
+  find \
+    -type f,l \
+    -newer "$prep_stamp" \
+    > "${wdir}/stamps/togethome"
 fi
 
-tar --files-from stamps/togethome -czf output.tar.gz
+tar \
+  --files-from "${wdir}/stamps/togethome" \
+  -czf "${wdir}/output.tar.gz"
