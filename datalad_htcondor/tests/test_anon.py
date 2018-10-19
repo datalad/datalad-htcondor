@@ -16,6 +16,7 @@ from datalad.utils import on_windows
 
 testimg_url = 'shub://datalad/datalad-container:testhelper'
 
+# TODO implement job submission helper
 
 @with_tempfile
 def test_basic(path):
@@ -33,9 +34,9 @@ def test_basic(path):
         inputs=['*'],
         submit=True,
     )
-    assert res[1]['action'] == 'htc_submit'
+    assert res[-1]['action'] == 'htc_submit'
     # TODO it is a shame that we cannot pass pathobj through datalad yet
-    submission_dir = ut.Path(res[0]['path'])
+    submission_dir = ut.Path(res[-1]['path'])
     # no input_files spec was written
     assert not (submission_dir / 'input_files').exists()
     # we gotta wait till the results are in
@@ -44,3 +45,24 @@ def test_basic(path):
     time.sleep(2)
     assert (submission_dir / 'job_0' / 'output.tar.gz').exists()
 
+    # add some content to the dataset and run again
+    # this will generate a second (un-applied) job result in the
+    # dataset store, but that should just work fine
+    (ds.pathobj / 'myfile.txt').write_text(u'dummy')
+    ds.rev_save()
+    res = ds.htc_prepare(
+        # TODO relative paths must work too!
+        cmd='{}/.datalad/environments/mycontainer/image bash -c "ls -laR > here"'.format(ds.path),
+        inputs=['*'],
+        submit=True,
+    )
+    assert res[-1]['action'] == 'htc_submit'
+    # TODO it is a shame that we cannot pass pathobj through datalad yet
+    submission_dir = ut.Path(res[-1]['path'])
+    # no input_files spec was written
+    assert (submission_dir / 'input_files').exists()
+    # we gotta wait till the results are in
+    while not (submission_dir / 'job_0' / 'logs' / 'err').exists():
+        time.sleep(1)
+    time.sleep(2)
+    assert (submission_dir / 'job_0' / 'output.tar.gz').exists()
