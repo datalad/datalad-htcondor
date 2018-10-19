@@ -1,2 +1,6 @@
 # If you want to develop, use requirements-devel.txt
 git+https://github.com/datalad/datalad.git
+pytest
+pytest-cov
+git+https://github.com/datalad/datalad-revolution.git
+datalad_container
