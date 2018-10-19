@@ -11,7 +11,7 @@ set -e -u
 prep_stamp="stamps/prep_complete"
 
 if [ -f "$prep_stamp" ]; then
-    find "dataset" -type f -newer "$prep_stamp" > stamps/togethome
+    find "dataset" -type f,l -newer "$prep_stamp" > stamps/togethome
 fi
 
 tar --files-from stamps/togethome -czf output.tar.gz
