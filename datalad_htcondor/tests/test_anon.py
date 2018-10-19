@@ -48,7 +48,8 @@ def test_basic(path):
     # add some content to the dataset and run again
     # this will generate a second (un-applied) job result in the
     # dataset store, but that should just work fine
-    (ds.pathobj / 'myfile.txt').write_text(u'dummy')
+    (ds.pathobj / 'myfile1.txt').write_text(u'dummy1')
+    (ds.pathobj / 'myfile2.txt').write_text(u'dummy2')
     ds.rev_save()
     res = ds.htc_prepare(
         # TODO relative paths must work too!
