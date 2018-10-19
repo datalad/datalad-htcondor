@@ -5,6 +5,8 @@
 
 set -e -u
 
+printf "postflight" > "${wdir}/status"
+
 wdir="$(readlink -f .)"
 
 # TODO if outputfile specification is available in the exec dir
@@ -46,3 +48,5 @@ fi
 tar \
   --files-from "${wdir}/stamps/togethome" \
   -czf "${wdir}/output.tar.gz"
+
+printf "completed" > "${wdir}/status"

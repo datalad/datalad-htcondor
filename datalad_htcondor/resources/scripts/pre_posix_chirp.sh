@@ -6,6 +6,7 @@
 
 set -e -u
 
+printf "preflight" > status
 # minimum input/output setup
 mkdir stamps
 mkdir dataset
@@ -23,7 +24,5 @@ while IFS= read -rd '' file; do
   "${chirp_exec}" fetch "${file}" dataset/"${file:${#dspath_prefix}}"
 done < input_files
 
-echo 'DONE -- FINAL STATE' >> stamps/PRE_stamp
-ls -Rla >> stamps/PRE_stamp
-
+printf "preflight_completed" > status
 touch stamps/prep_complete
