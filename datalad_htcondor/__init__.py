@@ -21,6 +21,12 @@ command_suite = (
             # optional name of the command in the Python API
             'htc_prepare'
         ),
+        (
+            'datalad_htcondor.htcresults',
+            'HTCResults',
+            'htc-results',
+            'htc_results'
+        ),
     ]
 )
 

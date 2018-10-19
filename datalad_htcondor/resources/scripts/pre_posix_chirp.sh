@@ -12,7 +12,11 @@ mkdir stamps
 mkdir dataset
 
 # if there is no input spec we can go home early
-[ ! -f input_files ] && exit 0
+if [ ! -f input_files ]; then
+  printf "preflight_completed" > status
+  touch stamps/prep_complete
+  exit 0
+fi
 
 chirp_exec="$(condor_config_val LIBEXEC)/condor_chirp"
 

@@ -5,9 +5,8 @@
 
 set -e -u
 
-printf "postflight" > "${wdir}/status"
-
 wdir="$(readlink -f .)"
+printf "postflight" > "${wdir}/status"
 
 # TODO if outputfile specification is available in the exec dir
 # loop over it and prepare a return package. If not, return everything
@@ -45,8 +44,8 @@ if [ -f "$prep_stamp" ]; then
     > "${wdir}/stamps/togethome"
 fi
 
-tar \
+[ -s "${wdir}/stamps/togethome" ] && tar \
   --files-from "${wdir}/stamps/togethome" \
-  -czf "${wdir}/output.tar.gz"
+  -czf "${wdir}/output" || touch "${wdir}/output"
 
 printf "completed" > "${wdir}/status"

@@ -87,7 +87,7 @@ initial_dir = job_$(Process)
 
 # paths must be relative to initial dir
 transfer_input_files = {transfer_files_list}
-transfer_output_files = status,stamps,output.tar.gz
+transfer_output_files = status,stamps,output
 
 # paths are relative to a job's initial dir
 Error   = logs/err
