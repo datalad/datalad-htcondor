@@ -320,8 +320,8 @@ class HTCPrepare(Interface):
             rev_status as status,
         )
 
-        # TODO RF: straight copy from `run` (minus expand-True)
-        inputs = GlobbedPaths(inputs, pwd=pwd, expand=True)
+        # TODO RF: straight copy from `run`
+        inputs = GlobbedPaths(inputs, pwd=pwd)
 
         if inputs:
             for res in _install_and_reglob(ds, inputs):
