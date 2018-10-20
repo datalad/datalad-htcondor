@@ -43,7 +43,7 @@ def test_basic(path):
     while not (submission_dir / 'job_0' / 'logs' / 'err').exists():
         time.sleep(1)
     time.sleep(2)
-    assert (submission_dir / 'job_0' / 'output.tar.gz').exists()
+    assert (submission_dir / 'job_0' / 'output').exists()
 
     # add some content to the dataset and run again
     # this will generate a second (un-applied) job result in the
@@ -66,4 +66,4 @@ def test_basic(path):
     while not (submission_dir / 'job_0' / 'logs' / 'err').exists():
         time.sleep(1)
     time.sleep(2)
-    assert (submission_dir / 'job_0' / 'output.tar.gz').exists()
+    assert (submission_dir / 'job_0' / 'output').exists()
