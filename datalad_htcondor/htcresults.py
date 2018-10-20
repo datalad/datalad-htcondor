@@ -31,7 +31,10 @@ from datalad.interface.results import get_status_dict
 from datalad.support import json_py
 
 from datalad.support.param import Parameter
-from datalad.support.constraints import EnsureNone
+from datalad.support.constraints import (
+    EnsureNone,
+    EnsureChoice,
+)
 from datalad.support.exceptions import CommandError
 
 from datalad.utils import get_dataset_pwds as get_command_pwds
@@ -58,8 +61,10 @@ class HTCResults(Interface):
     """TODO
     """
     _params_ = dict(
-        # need to overwrite this one to get EnsureDataset return the right
-        # instances
+        cmd=Parameter(
+            args=("cmd",),
+            doc="""""",
+            constraints=EnsureChoice('list', 'merge')),
         dataset=Parameter(
             args=("-d", "--dataset"),
             doc="""specify the dataset to record the command results in.
