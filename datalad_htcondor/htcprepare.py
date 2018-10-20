@@ -194,6 +194,11 @@ def get_singularity_jobspec(cmd):
     return exec_path, split_cmd[1:]
 
 
+def get_submissions_dir(ds):
+    """Return pathobj of directory where all the submission packs live"""
+    return ds.pathobj / GitRepo.get_git_dir(ds.path) / 'datalad' / 'htc'
+
+
 @build_doc
 class HTCPrepare(Interface):
     """TODO
@@ -268,8 +273,7 @@ class HTCPrepare(Interface):
         ]
 
         # where all the submission packs live
-        subroot_dir = \
-            ds.pathobj / GitRepo.get_git_dir(ds.path) / 'datalad' / 'htc'
+        subroot_dir = get_submissions_dir(ds)
         subroot_dir.mkdir(parents=True, exist_ok=True)
 
         # location of to-be-created submission

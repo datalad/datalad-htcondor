@@ -34,6 +34,7 @@ from datalad.support.param import Parameter
 from datalad.support.constraints import (
     EnsureNone,
     EnsureChoice,
+    EnsureInt,
 )
 from datalad.support.exceptions import CommandError
 
@@ -50,6 +51,9 @@ from datalad_revolution.dataset import (
     datasetmethod,
     require_dataset,
     EnsureDataset,
+)
+from datalad_htcondor.htcprepare import (
+    get_submissions_dir,
 )
 
 
@@ -77,7 +81,8 @@ class HTCResults(Interface):
             doc=""""""),
         job=Parameter(
             args=("--job",),
-            doc=""""""),
+            doc="""""",
+            constraints=EnsureInt() | EnsureNone()),
     )
 
     @staticmethod
@@ -94,4 +99,45 @@ class HTCResults(Interface):
             check_installed=True,
             purpose='handling results of remote command executions')
 
+        if cmd == 'list':
+            proc = list_results(ds, submission, job)
+        elif cmd == 'merge':
+            proc = merge_results(ds, submission, job)
+        else:
+            raise ValueError("unknown sub-command '{}'".format(cmd))
 
+        for res in proc:
+            yield res
+
+
+def list_results(ds, submission, job):
+    submissions_dir = get_submissions_dir(ds)
+    if not submissions_dir.exists() or not submissions_dir.is_dir():
+        return
+    for p in submissions_dir.iterdir() \
+            if submission is None \
+            else [submissions_dir / 'submit_{}'.format(submission)]:
+        if not p.is_dir() or not p.match('submit_*'):
+            continue
+        for j in p.iterdir() \
+                if job is None else [p / 'job_{0:d}'.format(job)]:
+            if not j.is_dir():
+                continue
+            submission_status_path = p / 'status'
+            job_status_path = j / 'status'
+            yield dict(
+                action='htc_results',
+                status='ok',
+                state=job_status_path.read_text() if job_status_path.exists()
+                else submission_status_path.read_text()
+                if submission_status_path.exists() else None,
+                path=text_type(j),
+                submission=text_type(p.name)[7:],
+                job=int(text_type(j.name)[4:]),
+                refds=text_type(ds.pathobj),
+                logger=lgr,
+            )
+
+
+def merge_results(ds, submission, job):
+    yield
