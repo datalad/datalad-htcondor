@@ -20,7 +20,9 @@ fi
 
 chirp_exec="$(condor_config_val LIBEXEC)/condor_chirp"
 
-dspath_prefix="$(cat dataset_path)"
+# with this preflight script we can only handle path locations
+# no URLs
+dspath_prefix="$(cat source_dataset_location)"
 
 # obtain input files
 while IFS= read -rd '' file; do

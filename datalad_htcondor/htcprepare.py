@@ -373,9 +373,9 @@ class HTCPrepare(Interface):
                 u'\0'.join(outputs) + u'\0')
             transfer_files_list.append('output_globs')
 
-        (submission_dir / 'dataset_path').write_text(
+        (submission_dir / 'source_dataset_location').write_text(
             text_type(ds.pathobj) + op.sep)
-        transfer_files_list.append('dataset_path')
+        transfer_files_list.append('source_dataset_location')
 
         with (submission_dir / 'cluster.submit').open('w') as f:
             f.write(submission_template.format(
