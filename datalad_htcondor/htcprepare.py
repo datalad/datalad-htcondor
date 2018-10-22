@@ -146,9 +146,8 @@ def get_singularity_jobspec(cmd):
       runscript of the container is returned a string. The second value is
       None if the first is None, or a list of arguments to the runscript.
     """
-    split_cmd = shlex.split(cmd)
     # get the path to the command's executable
-    exec_path = ut.Path(split_cmd[0])
+    exec_path = ut.Path(cmd[0])
 
     runner = Runner()
     if not exec_path.resolve().exists():
@@ -176,7 +175,8 @@ def get_singularity_jobspec(cmd):
     try:
         stdout, stderr = runner.run(
             # stringification only needed for pythons older than 3.6
-            ['singularity', 'exec', text_type(exec_path), 'cat', '/singularity'],
+            ['singularity', 'exec', text_type(exec_path),
+             'cat', '/singularity'],
             log_stdout=True,
             log_stderr=True,
             expect_stderr=True,
@@ -191,7 +191,7 @@ def get_singularity_jobspec(cmd):
                   exec_path, exc_str(e))
         return
     # all but the container itself are the arguments
-    return exec_path, split_cmd[1:]
+    return exec_path, cmd[1:]
 
 
 def get_submissions_dir(ds):
@@ -280,12 +280,15 @@ class HTCPrepare(Interface):
         submission_dir = ut.Path(tempfile.mkdtemp(
             prefix='submit_', dir=text_type(subroot_dir)))
 
+        split_cmd = shlex.split(cmd_expanded)
         # is this a singularity job?
-        singularity_job = get_singularity_jobspec(cmd_expanded)
+        singularity_job = get_singularity_jobspec(split_cmd)
         if not singularity_job:
-            # TODO
-            import pdb; pdb.set_trace()
-            pass
+            with (submission_dir / 'runner.sh').open('wb') as f:
+                f.write(resource_string(
+                    'datalad_htcondor',
+                    'resources/scripts/runner_direct.sh'))
+            job_args = split_cmd
         else:
             # link the container into the submission dir
             (submission_dir / 'singularity.simg').symlink_to(
@@ -300,7 +303,7 @@ class HTCPrepare(Interface):
                 f.write(resource_string(
                     'datalad_htcondor',
                     'resources/scripts/runner_singularity_anon.sh'))
-            make_executable(submission_dir / 'runner.sh')
+        make_executable(submission_dir / 'runner.sh')
 
         # htcondor wants the log dir to exist at submit time
         # TODO ATM we only support a single job per cluster submission
