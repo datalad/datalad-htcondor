@@ -20,6 +20,7 @@ from six import (
 
 from pkg_resources import resource_string
 
+import datalad.support.ansi_colors as ac
 from datalad.interface.base import (
     Interface,
     build_doc,
@@ -66,9 +67,15 @@ lgr = logging.getLogger('datalad.htcondor.htcresults')
 class HTCResults(Interface):
     """TODO
     """
+    # make the custom renderer the default one, as the global default renderer
+    # does not yield meaningful output for this command
+    result_renderer = 'tailored'
+
     _params_ = dict(
         cmd=Parameter(
             args=("cmd",),
+            metavar=("SUBCOMMAND",),
+            nargs='?',
             doc="""""",
             constraints=EnsureChoice('list', 'merge', 'remove')),
         dataset=Parameter(
@@ -79,10 +86,13 @@ class HTCResults(Interface):
             executed in the root directory of this dataset.""",
             constraints=EnsureDataset() | EnsureNone()),
         submission=Parameter(
-            args=("--submission",),
+            args=("submission",),
+            nargs='?',
+            metavar='SUBMISSION',
             doc=""""""),
         job=Parameter(
-            args=("--job",),
+            args=("-j", "--job",),
+            metavar='NUMBER',
             doc="""""",
             constraints=EnsureInt() | EnsureNone()),
         all=Parameter(
@@ -95,7 +105,7 @@ class HTCResults(Interface):
     @datasetmethod(name='htc_results')
     @eval_results
     def __call__(
-            cmd,
+            cmd='list',
             dataset=None,
             submission=None,
             job=None,
@@ -107,8 +117,8 @@ class HTCResults(Interface):
             purpose='handling results of remote command executions')
 
         if cmd == 'list':
-            jw = _list_worker
-            sw = None
+            jw = _list_job
+            sw = _list_submission
 #        elif cmd == 'merge':
 #            proc = merge_results(ds, submission, job)
         elif cmd == 'remove':
@@ -123,6 +133,38 @@ class HTCResults(Interface):
 
         for res in _doit(ds, submission, job, jw, sw):
             yield res
+
+    @staticmethod
+    def custom_result_renderer(res, **kwargs):  # pragma: no cover
+        from datalad.ui import ui
+        if not res['status'] == 'ok':
+            # logging reported already
+            return
+        action = res['action'].split('_')[-1]
+        ui.message('{action} {sub}{job}{state}{cmd}'.format(
+            action=ac.color_word(action, kw_color_map.get(action, ac.WHITE))
+            if action != 'list' else '',
+            sub=res['submission'],
+            job=' :{}'.format(res['job']) if 'job' in res else '',
+            state=' [{}]'.format(
+                ac.color_word(
+                    res['state'],
+                    kw_color_map.get(res['state'], ac.MAGENTA))
+                if res.get('state', None) else 'unknown')
+            if action =='list' else '',
+            cmd=': {}'.format(
+                _format_cmd_shorty(res['cmd']))
+            if 'cmd' in res else '',
+        ))
+
+
+kw_color_map = {
+    'remove': ac.RED,
+    'merge': ac.GREEN,
+    'completed': ac.GREEN,
+    'submitted': ac.WHITE,
+    'prepared': ac.YELLOW,
+}
 
 
 def _remove_dir(ds, dir, _ignored=None):
@@ -143,10 +185,19 @@ def _remove_dir(ds, dir, _ignored=None):
             **common)
 
 
-def _list_worker(ds, jdir, sdir):
-    submission_status_path = sdir / 'status'
+def _list_job(ds, jdir, sdir):
+    props = _list_submission(ds, sdir)
     job_status_path = jdir / 'status'
-    # get a command summary
+    return dict(
+        props,
+        state=job_status_path.read_text() if job_status_path.exists()
+        else props.get('state', None),
+        path=text_type(jdir),
+    )
+
+
+def _list_submission(ds, sdir):
+    submission_status_path = sdir / 'status'
     args_path = sdir / 'runargs.json'
     if args_path.exists():
         try:
@@ -158,10 +209,9 @@ def _list_worker(ds, jdir, sdir):
     return dict(
         action='htc_result_list',
         status='ok',
-        state=job_status_path.read_text() if job_status_path.exists()
-        else submission_status_path.read_text()
+        state=submission_status_path.read_text()
         if submission_status_path.exists() else None,
-        path=text_type(jdir),
+        path=text_type(sdir),
         **(dict(cmd=cmd) if cmd else {})
     )
 
@@ -187,6 +237,11 @@ def _doit(ds, submission, job, jworker, sworker):
     for p in submissions_dir.iterdir() \
             if submission is None \
             else [sdir]:
+        if sworker is not None and job is None:
+            yield dict(
+                sworker(ds, p),
+                submission=text_type(p.name)[7:],
+                **common)
         if not p.is_dir() or not p.match('submit_*'):
             continue
         for j in p.iterdir() \
@@ -197,9 +252,4 @@ def _doit(ds, submission, job, jworker, sworker):
                 jworker(ds, j, p),
                 submission=text_type(p.name)[7:],
                 job=int(text_type(j.name)[4:]),
-                **common)
-        if sworker is not None:
-            yield dict(
-                sworker(ds, p),
-                submission=text_type(p.name)[7:],
                 **common)
