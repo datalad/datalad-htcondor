@@ -296,11 +296,11 @@ class HTCPrepare(Interface):
             job_args.insert(0, 'singularity.simg')
 
             # TODO conditional on run_as_user=false
-            with (submission_dir / 'singularity_nobody.sh').open('wb') as f:
+            with (submission_dir / 'runner.sh').open('wb') as f:
                 f.write(resource_string(
                     'datalad_htcondor',
-                    'resources/scripts/singularity_nobody.sh'))
-            make_executable(submission_dir / 'singularity_nobody.sh')
+                    'resources/scripts/runner_singularity_anon.sh'))
+            make_executable(submission_dir / 'runner.sh')
 
         # htcondor wants the log dir to exist at submit time
         # TODO ATM we only support a single job per cluster submission
@@ -383,7 +383,7 @@ class HTCPrepare(Interface):
 
         with (submission_dir / 'cluster.submit').open('w') as f:
             f.write(submission_template.format(
-                executable='singularity_nobody.sh',
+                executable='runner.sh',
                 # TODO if singularity_job else 'job.sh',
                 transfer_files_list=','.join(
                     op.join(op.pardir, f) for f in transfer_files_list),
