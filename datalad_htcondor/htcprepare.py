@@ -279,6 +279,7 @@ class HTCPrepare(Interface):
         # location of to-be-created submission
         submission_dir = ut.Path(tempfile.mkdtemp(
             prefix='submit_', dir=text_type(subroot_dir)))
+        submission = submission_dir.name[7:]
 
         split_cmd = shlex.split(cmd_expanded)
         # is this a singularity job?
@@ -358,14 +359,10 @@ class HTCPrepare(Interface):
                         # this might pull in the world
                         recursive=False,
                         # we would have otherwise no idea
-                        untracked='no'):
-                    if f.tell():
-                        # separate file paths with the null-byte to be
-                        # robust against exotic filenames
-                        f.write(u'\0')
+                        untracked='no',
+                        result_renderer=None):
                     f.write(text_type(p['path']))
-                # we need a final trailing delimiter as a terminator
-                f.write(u'\0')
+                    f.write(u'\0')
                 transfer_files_list.append('input_files')
 
         if outputs:
@@ -427,6 +424,7 @@ class HTCPrepare(Interface):
             action='htc_prepare',
             status='ok',
             refds=text_type(ds.pathobj),
+            submission=submission,
             path=text_type(submission_dir),
             logger=lgr)
 
@@ -443,6 +441,7 @@ class HTCPrepare(Interface):
                 yield get_status_dict(
                     action='htc_submit',
                     status='ok',
+                    submission=submission,
                     refds=text_type(ds.pathobj),
                     path=text_type(submission_dir),
                     logger=lgr)
@@ -450,6 +449,7 @@ class HTCPrepare(Interface):
                 yield get_status_dict(
                     action='htc_submit',
                     status='error',
+                    submission=submission,
                     message=('condor_submit failed: %s', exc_str(e)),
                     refds=text_type(ds.pathobj),
                     path=text_type(submission_dir),
