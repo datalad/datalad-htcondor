@@ -165,7 +165,7 @@ def get_singularity_jobspec(cmd):
             expect_fail=True,
         )
         # TODO could be used to tailor handling to particular versions
-    except CommandError as e:
+    except CommandError as e:  # pragma: no cover
         # we do not have a singularity installation that we can handle
         # log debug, because there is no guarantee that the executable
         # actually was a singularity container

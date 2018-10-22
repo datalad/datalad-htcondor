@@ -10,13 +10,16 @@ import datalad_revolution.utils as ut
 from datalad.tests.utils import (
     assert_result_count,
     with_tempfile,
+    eq_,
 )
 from datalad.utils import on_windows
+from datalad_htcondor.htcprepare import get_singularity_jobspec
 
 
 testimg_url = 'shub://datalad/datalad-container:testhelper'
 
 # TODO implement job submission helper
+
 
 @with_tempfile
 def test_basic(path):
@@ -26,9 +29,22 @@ def test_basic(path):
         'mycontainer',
         url=testimg_url,
     )
+    imgpath = '{}/.datalad/environments/mycontainer/image'.format(ds.path)
+
+    # must come back with None in all kinds of scenarios that do not
+    # involve a sigularity image
+    # something that is not a path to an existing thing
+    eq_(None, get_singularity_jobspec('bash'))
+    # something that singularity rejects as an image
+    eq_(None, get_singularity_jobspec('{}/.datalad/config'.format(ds.path)))
+    # finally a real image
+    img, rest = get_singularity_jobspec('{} rest1 rest2'.format(imgpath))
+    eq_(str(img), imgpath)
+    eq_(rest, ['rest1', 'rest2'])
+
     res = ds.htc_prepare(
         # TODO relative paths must work too!
-        cmd='{}/.datalad/environments/mycontainer/image bash -c "ls -laR > here"'.format(ds.path),
+        cmd='{} bash -c "ls -laR > here"'.format(imgpath),
         # '*' doesn't actually match anything, but we should be able
         # to simply not transfer anything in such a case
         inputs=['*'],
