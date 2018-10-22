@@ -12,6 +12,7 @@ __docformat__ = 'restructuredtext'
 
 import logging
 import tempfile
+import shutil
 from six import (
     iteritems,
     text_type,
@@ -25,6 +26,7 @@ from datalad.interface.base import (
 )
 from datalad.interface.run import (
     GlobbedPaths,
+    _format_cmd_shorty,
 )
 from datalad.interface.utils import eval_results
 from datalad.interface.results import get_status_dict
@@ -68,7 +70,7 @@ class HTCResults(Interface):
         cmd=Parameter(
             args=("cmd",),
             doc="""""",
-            constraints=EnsureChoice('list', 'merge')),
+            constraints=EnsureChoice('list', 'merge', 'remove')),
         dataset=Parameter(
             args=("-d", "--dataset"),
             doc="""specify the dataset to record the command results in.
@@ -83,6 +85,10 @@ class HTCResults(Interface):
             args=("--job",),
             doc="""""",
             constraints=EnsureInt() | EnsureNone()),
+        all=Parameter(
+            args=("--all",),
+            action='store_true',
+            doc=""""""),
     )
 
     @staticmethod
@@ -92,7 +98,8 @@ class HTCResults(Interface):
             cmd,
             dataset=None,
             submission=None,
-            job=None):
+            job=None,
+            all=False):
 
         ds = require_dataset(
             dataset,
@@ -100,44 +107,99 @@ class HTCResults(Interface):
             purpose='handling results of remote command executions')
 
         if cmd == 'list':
-            proc = list_results(ds, submission, job)
-        elif cmd == 'merge':
-            proc = merge_results(ds, submission, job)
+            jw = _list_worker
+            sw = None
+#        elif cmd == 'merge':
+#            proc = merge_results(ds, submission, job)
+        elif cmd == 'remove':
+            if not all and not submission and not job:
+                raise ValueError(
+                    "use the '--all' flag to remove all results across all "
+                    "submissions")
+            jw = _remove_dir
+            sw = _remove_dir
         else:
             raise ValueError("unknown sub-command '{}'".format(cmd))
 
-        for res in proc:
+        for res in _doit(ds, submission, job, jw, sw):
             yield res
 
 
-def list_results(ds, submission, job):
+def _remove_dir(ds, dir, _ignored=None):
+    common = dict(
+        action='htc_result_remove',
+        path=text_type(dir),
+    )
+    try:
+        shutil.rmtree(dir)
+        return dict(
+            status='ok',
+            **common)
+    except Exception as e:
+        return dict(
+            status='error',
+            message=("could not remove directory '%s': %s",
+                     common['path'], exc_str(e)),
+            **common)
+
+
+def _list_worker(ds, jdir, sdir):
+    submission_status_path = sdir / 'status'
+    job_status_path = jdir / 'status'
+    # get a command summary
+    args_path = sdir / 'runargs.json'
+    if args_path.exists():
+        try:
+            cmd = json_py.load(args_path)['cmd']
+        except Exception:
+            cmd = None
+    else:
+        cmd = None
+    return dict(
+        action='htc_result_list',
+        status='ok',
+        state=job_status_path.read_text() if job_status_path.exists()
+        else submission_status_path.read_text()
+        if submission_status_path.exists() else None,
+        path=text_type(jdir),
+        **(dict(cmd=cmd) if cmd else {})
+    )
+
+
+def _doit(ds, submission, job, jworker, sworker):
+    common = dict(
+        refds=text_type(ds.pathobj),
+        logger=lgr,
+    )
     submissions_dir = get_submissions_dir(ds)
     if not submissions_dir.exists() or not submissions_dir.is_dir():
         return
+    if submission:
+        sdir = submissions_dir / 'submit_{}'.format(submission)
+        if not sdir.is_dir():
+            yield dict(
+                action='htc_results',
+                status='error',
+                path=text_type(sdir),
+                message=("submission '%s' does not exist", submission),
+                **common)
+            return
     for p in submissions_dir.iterdir() \
             if submission is None \
-            else [submissions_dir / 'submit_{}'.format(submission)]:
+            else [sdir]:
         if not p.is_dir() or not p.match('submit_*'):
             continue
         for j in p.iterdir() \
                 if job is None else [p / 'job_{0:d}'.format(job)]:
             if not j.is_dir():
                 continue
-            submission_status_path = p / 'status'
-            job_status_path = j / 'status'
             yield dict(
-                action='htc_results',
-                status='ok',
-                state=job_status_path.read_text() if job_status_path.exists()
-                else submission_status_path.read_text()
-                if submission_status_path.exists() else None,
-                path=text_type(j),
+                jworker(ds, j, p),
                 submission=text_type(p.name)[7:],
                 job=int(text_type(j.name)[4:]),
-                refds=text_type(ds.pathobj),
-                logger=lgr,
-            )
-
-
-def merge_results(ds, submission, job):
-    yield
+                **common)
+        if sworker is not None:
+            yield dict(
+                sworker(ds, p),
+                submission=text_type(p.name)[7:],
+                **common)
