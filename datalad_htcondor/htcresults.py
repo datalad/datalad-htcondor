@@ -119,8 +119,9 @@ class HTCResults(Interface):
         if cmd == 'list':
             jw = _list_job
             sw = _list_submission
-#        elif cmd == 'merge':
-#            proc = merge_results(ds, submission, job)
+        elif cmd == 'merge':
+            jw = _apply_output
+            sw = None
         elif cmd == 'remove':
             if not all and not submission and not job:
                 raise ValueError(
@@ -151,7 +152,7 @@ class HTCResults(Interface):
                     res['state'],
                     kw_color_map.get(res['state'], ac.MAGENTA))
                 if res.get('state', None) else 'unknown')
-            if action =='list' else '',
+            if action == 'list' else '',
             cmd=': {}'.format(
                 _format_cmd_shorty(res['cmd']))
             if 'cmd' in res else '',
@@ -214,6 +215,40 @@ def _list_submission(ds, sdir):
         path=text_type(sdir),
         **(dict(cmd=cmd) if cmd else {})
     )
+
+
+def _apply_output(ds, jdir, sdir):
+    common = dict(
+        action='htc_result_merge',
+        refds=text_type(ds.pathobj),
+        path=text_type(jdir),
+        logger=lgr,
+    )
+    args_path = sdir / 'runargs.json'
+    try:
+        runargs = json_py.load(args_path)
+    except Exception:
+        return dict(
+            common,
+            status='error',
+            message=("could not load submission arguments from '%s'",
+                     args_path)
+        )
+    # TODO need to immitate PWD change, if needed
+    # TODO catch error and give meaningful message
+    ds.run(
+        'tar -xf "{}"'.format(jdir / 'output'),
+        on_failure='stop',
+        **{k: v for k, v in iteritems(runargs)
+           if k not in ('dataset', 'cmd', 'inputs', 'pwd')}
+    )
+    res = _remove_dir(ds, jdir)
+    res['action'] = 'htc_results_merge'
+    res['status'] = 'ok'
+    res.pop('message', None)
+    # not removing the submission files (for now), even if the last job output
+    # might be removed now. Those submissions are tiny and could be resubmitted
+    return res
 
 
 def _doit(ds, submission, job, jworker, sworker):
