@@ -135,8 +135,8 @@ def get_singularity_jobspec(cmd):
 
     Parameters
     ----------
-    cmd : str
-      A command as a single string.
+    cmd : list
+      A command as an argument list.
 
     Returns
     -------

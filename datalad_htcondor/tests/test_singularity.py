@@ -34,11 +34,11 @@ def test_basic(path):
     # must come back with None in all kinds of scenarios that do not
     # involve a sigularity image
     # something that is not a path to an existing thing
-    eq_(None, get_singularity_jobspec('bash'))
+    eq_(None, get_singularity_jobspec(['bash']))
     # something that singularity rejects as an image
-    eq_(None, get_singularity_jobspec('{}/.datalad/config'.format(ds.path)))
+    eq_(None, get_singularity_jobspec(['{}/.datalad/config'.format(ds.path)]))
     # finally a real image
-    img, rest = get_singularity_jobspec('{} rest1 rest2'.format(imgpath))
+    img, rest = get_singularity_jobspec(['{}'.format(imgpath), 'rest1', 'rest2'])
     eq_(str(img), imgpath)
     eq_(rest, ['rest1', 'rest2'])
 

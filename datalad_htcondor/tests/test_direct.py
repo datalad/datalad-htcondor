@@ -22,8 +22,6 @@ from datalad.utils import on_windows
 from datalad_htcondor.htcprepare import get_singularity_jobspec
 
 
-testimg_url = 'shub://datalad/datalad-container:testhelper'
-
 # TODO implement job submission helper
 
 
