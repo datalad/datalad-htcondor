@@ -252,7 +252,8 @@ class HTCPrepare(Interface):
         sub_namespace = {k.replace("datalad.run.substitutions.", ""): v
                          for k, v in ds.config.items("datalad.run.substitutions")}
         try:
-            cmd_expanded = format_command(cmd,
+            cmd_expanded = format_command(ds,
+                                          cmd,
                                           pwd=pwd,
                                           dspath=ds.path,
                                           inputs=inputs,
