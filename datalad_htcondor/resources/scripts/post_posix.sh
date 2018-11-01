@@ -39,7 +39,7 @@ if [ -f "$prep_stamp" ]; then
   # TODO this is missing the selector expression
   # that is built (broken) above
   find \
-    -type f,l \
+	  \( -type f -o -type l \) \
     -newer "$prep_stamp" \
     > "${wdir}/stamps/togethome"
 fi
