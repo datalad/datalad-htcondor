@@ -31,6 +31,7 @@ from datalad.interface.run import (
     Run,
     format_command,
     GlobbedPaths,
+    prepare_inputs,
     _install_and_reglob,
 )
 from datalad.interface.utils import eval_results
@@ -327,18 +328,8 @@ class HTCPrepare(Interface):
             rev_status as status,
         )
 
-        # TODO RF: straight copy from `run`
         inputs = GlobbedPaths(inputs, pwd=pwd)
-
-        if inputs:
-            for res in _install_and_reglob(ds, inputs):
-                yield res
-            for res in ds.get(inputs.expand(full=True), on_failure="ignore"):
-                if res.get("state") == "absent":
-                    lgr.warning("Input does not exist: %s", res["path"])
-                else:
-                    yield res
-        # TODO end straight copy
+        prepare_inputs(ds, inputs)
 
         # it could be that an input expression does not expand,
         # because it doesn't match anything. In such a case
