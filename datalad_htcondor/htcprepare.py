@@ -87,7 +87,7 @@ initial_dir = job_$(Process)
 
 # paths must be relative to initial dir
 transfer_input_files = {transfer_files_list}
-transfer_output_files = stamps,output.tar.gz
+transfer_output_files = status,stamps,output
 
 # paths are relative to a job's initial dir
 Error   = logs/err
@@ -135,8 +135,8 @@ def get_singularity_jobspec(cmd):
 
     Parameters
     ----------
-    cmd : str
-      A command as a single string.
+    cmd : list
+      A command as an argument list.
 
     Returns
     -------
@@ -146,12 +146,11 @@ def get_singularity_jobspec(cmd):
       runscript of the container is returned a string. The second value is
       None if the first is None, or a list of arguments to the runscript.
     """
-    split_cmd = shlex.split(cmd)
     # get the path to the command's executable
-    exec_path = ut.Path(split_cmd[0])
+    exec_path = cmd[0]
 
     runner = Runner()
-    if not exec_path.resolve().exists():
+    if not op.exists(exec_path):
         # probably a command from PATH
         return
 
@@ -165,7 +164,7 @@ def get_singularity_jobspec(cmd):
             expect_fail=True,
         )
         # TODO could be used to tailor handling to particular versions
-    except CommandError as e:
+    except CommandError as e:  # pragma: no cover
         # we do not have a singularity installation that we can handle
         # log debug, because there is no guarantee that the executable
         # actually was a singularity container
@@ -176,7 +175,8 @@ def get_singularity_jobspec(cmd):
     try:
         stdout, stderr = runner.run(
             # stringification only needed for pythons older than 3.6
-            ['singularity', 'exec', text_type(exec_path), 'cat', '/singularity'],
+            ['singularity', 'exec', exec_path,
+             'cat', '/singularity'],
             log_stdout=True,
             log_stderr=True,
             expect_stderr=True,
@@ -191,7 +191,12 @@ def get_singularity_jobspec(cmd):
                   exec_path, exc_str(e))
         return
     # all but the container itself are the arguments
-    return exec_path, split_cmd[1:]
+    return exec_path, cmd[1:]
+
+
+def get_submissions_dir(ds):
+    """Return pathobj of directory where all the submission packs live"""
+    return ds.pathobj / GitRepo.get_git_dir(ds.path) / 'datalad' / 'htc'
 
 
 @build_doc
@@ -244,15 +249,13 @@ class HTCPrepare(Interface):
             purpose='preparing a remote command execution')
 
         # TODO RF: straight copy from `run` should become usable here
-        sub_namespace = {k.replace("datalad.run.substitutions.", ""): v
-                         for k, v in ds.config.items("datalad.run.substitutions")}
         try:
-            cmd_expanded = format_command(cmd,
+            cmd_expanded = format_command(ds,
+                                          cmd,
                                           pwd=pwd,
                                           dspath=ds.path,
                                           inputs=inputs,
-                                          outputs=outputs,
-                                          **sub_namespace)
+                                          outputs=outputs)
         except KeyError as exc:
             yield get_status_dict(
                 'run',
@@ -268,35 +271,38 @@ class HTCPrepare(Interface):
         ]
 
         # where all the submission packs live
-        subroot_dir = \
-            ds.pathobj / GitRepo.get_git_dir(ds.path) / 'datalad' / 'htc'
+        subroot_dir = get_submissions_dir(ds)
         subroot_dir.mkdir(parents=True, exist_ok=True)
 
         # location of to-be-created submission
         submission_dir = ut.Path(tempfile.mkdtemp(
             prefix='submit_', dir=text_type(subroot_dir)))
+        submission = submission_dir.name[7:]
 
+        split_cmd = shlex.split(cmd_expanded)
         # is this a singularity job?
-        singularity_job = get_singularity_jobspec(cmd_expanded)
+        singularity_job = get_singularity_jobspec(split_cmd)
         if not singularity_job:
-            # TODO
-            import pdb; pdb.set_trace()
-            pass
+            with (submission_dir / 'runner.sh').open('wb') as f:
+                f.write(resource_string(
+                    'datalad_htcondor',
+                    'resources/scripts/runner_direct.sh'))
+            job_args = split_cmd
         else:
             # link the container into the submission dir
             (submission_dir / 'singularity.simg').symlink_to(
-                singularity_job[0].resolve())
+                ut.Path(singularity_job[0]).resolve())
             transfer_files_list.append('singularity.simg')
             # arguments of the job
             job_args = singularity_job[1]
             job_args.insert(0, 'singularity.simg')
 
             # TODO conditional on run_as_user=false
-            with (submission_dir / 'singularity_nobody.sh').open('wb') as f:
+            with (submission_dir / 'runner.sh').open('wb') as f:
                 f.write(resource_string(
                     'datalad_htcondor',
-                    'resources/scripts/singularity_nobody.sh'))
-            make_executable(submission_dir / 'singularity_nobody.sh')
+                    'resources/scripts/runner_singularity_anon.sh'))
+        make_executable(submission_dir / 'runner.sh')
 
         # htcondor wants the log dir to exist at submit time
         # TODO ATM we only support a single job per cluster submission
@@ -351,14 +357,10 @@ class HTCPrepare(Interface):
                         # this might pull in the world
                         recursive=False,
                         # we would have otherwise no idea
-                        untracked='no'):
-                    if f.tell():
-                        # separate file paths with the null-byte to be
-                        # robust against exotic filenames
-                        f.write(u'\0')
+                        untracked='no',
+                        result_renderer=None):
                     f.write(text_type(p['path']))
-                # we need a final trailing delimiter as a terminator
-                f.write(u'\0')
+                    f.write(u'\0')
                 transfer_files_list.append('input_files')
 
         if outputs:
@@ -373,13 +375,13 @@ class HTCPrepare(Interface):
                 u'\0'.join(outputs) + u'\0')
             transfer_files_list.append('output_globs')
 
-        (submission_dir / 'dataset_path').write_text(
+        (submission_dir / 'source_dataset_location').write_text(
             text_type(ds.pathobj) + op.sep)
-        transfer_files_list.append('dataset_path')
+        transfer_files_list.append('source_dataset_location')
 
         with (submission_dir / 'cluster.submit').open('w') as f:
             f.write(submission_template.format(
-                executable='singularity_nobody.sh',
+                executable='runner.sh',
                 # TODO if singularity_job else 'job.sh',
                 transfer_files_list=','.join(
                     op.join(op.pardir, f) for f in transfer_files_list),
@@ -413,10 +415,14 @@ class HTCPrepare(Interface):
             text_type(submission_dir / 'runargs.json')
         )
 
+        # we use this file to inspect what state this submission is in
+        (submission_dir / 'status').write_text(u'prepared')
+
         yield get_status_dict(
             action='htc_prepare',
             status='ok',
             refds=text_type(ds.pathobj),
+            submission=submission,
             path=text_type(submission_dir),
             logger=lgr)
 
@@ -429,9 +435,11 @@ class HTCPrepare(Interface):
                     expect_stderr=True,
                     expect_fail=True,
                 )
+                (submission_dir / 'status').write_text(u'submitted')
                 yield get_status_dict(
                     action='htc_submit',
                     status='ok',
+                    submission=submission,
                     refds=text_type(ds.pathobj),
                     path=text_type(submission_dir),
                     logger=lgr)
@@ -439,6 +447,7 @@ class HTCPrepare(Interface):
                 yield get_status_dict(
                     action='htc_submit',
                     status='error',
+                    submission=submission,
                     message=('condor_submit failed: %s', exc_str(e)),
                     refds=text_type(ds.pathobj),
                     path=text_type(submission_dir),

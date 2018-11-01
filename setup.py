@@ -27,6 +27,8 @@ setup(
     # datalad command suite specs from here
     install_requires=[
         'datalad',
+        'datalad-container',
+        'datalad-revolution>=0.4',
     ],
     entry_points = {
         # 'datalad.extensions' is THE entrypoint inspected by the datalad API builders
