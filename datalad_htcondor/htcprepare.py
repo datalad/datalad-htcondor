@@ -147,10 +147,10 @@ def get_singularity_jobspec(cmd):
       None if the first is None, or a list of arguments to the runscript.
     """
     # get the path to the command's executable
-    exec_path = ut.Path(cmd[0])
+    exec_path = cmd[0]
 
     runner = Runner()
-    if not exec_path.resolve().exists():
+    if not op.exists(exec_path):
         # probably a command from PATH
         return
 
@@ -175,7 +175,7 @@ def get_singularity_jobspec(cmd):
     try:
         stdout, stderr = runner.run(
             # stringification only needed for pythons older than 3.6
-            ['singularity', 'exec', text_type(exec_path),
+            ['singularity', 'exec', exec_path,
              'cat', '/singularity'],
             log_stdout=True,
             log_stderr=True,
@@ -293,7 +293,7 @@ class HTCPrepare(Interface):
         else:
             # link the container into the submission dir
             (submission_dir / 'singularity.simg').symlink_to(
-                singularity_job[0].resolve())
+                ut.Path(singularity_job[0]).resolve())
             transfer_files_list.append('singularity.simg')
             # arguments of the job
             job_args = singularity_job[1]
