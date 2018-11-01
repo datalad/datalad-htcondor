@@ -32,7 +32,6 @@ from datalad.interface.run import (
     format_command,
     GlobbedPaths,
     prepare_inputs,
-    _install_and_reglob,
 )
 from datalad.interface.utils import eval_results
 from datalad.interface.results import get_status_dict
@@ -321,7 +320,7 @@ class HTCPrepare(Interface):
         make_executable(submission_dir / 'post.sh')
 
         # API support selection (bound dataset methods and such)
-        # internal iport to avoid circularities
+        # internal import to avoid circularities
         from datalad.api import (
             rev_status as status,
         )
