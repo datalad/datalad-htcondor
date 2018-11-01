@@ -249,7 +249,6 @@ class HTCPrepare(Interface):
             check_installed=True,
             purpose='preparing a remote command execution')
 
-        # TODO RF: straight copy from `run` should become usable here
         try:
             cmd_expanded = format_command(ds,
                                           cmd,
@@ -259,13 +258,12 @@ class HTCPrepare(Interface):
                                           outputs=outputs)
         except KeyError as exc:
             yield get_status_dict(
-                'run',
+                'htcprepare',
                 ds=ds,
                 status='impossible',
                 message=('command has an unrecognized placeholder: %s',
                          exc))
             return
-        # TODO end straight copy
 
         transfer_files_list = [
             'pre.sh', 'post.sh'
