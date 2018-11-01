@@ -226,13 +226,14 @@ def _apply_output(ds, jdir, sdir):
     )
     args_path = sdir / 'runargs.json'
     try:
-        runargs = json_py.load(args_path)
-    except Exception:
+        # anything below PY3.6 needs stringification
+        runargs = json_py.load(str(args_path))
+    except Exception as e:
         return dict(
             common,
             status='error',
-            message=("could not load submission arguments from '%s'",
-                     args_path)
+            message=("could not load submission arguments from '%s': %s",
+                     args_path, exc_str(e))
         )
     # TODO need to immitate PWD change, if needed
     # TODO catch error and give meaningful message
