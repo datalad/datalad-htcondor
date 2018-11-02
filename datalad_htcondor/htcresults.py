@@ -222,12 +222,12 @@ def _apply_output(ds, jdir, sdir):
         # anything below PY3.6 needs stringification
         runargs = json_py.load(str(args_path))
     except Exception as e:
-        return dict(
+        yield dict(
             common,
             status='error',
             message=("could not load submission arguments from '%s': %s",
-                     args_path, exc_str(e))
-        )
+                     args_path, exc_str(e)))
+        return
     # TODO check recursive status to have dataset clean
     # TODO have query limited to outputs if exlicit was given
     # prep outputs (unlock or remove)
@@ -269,7 +269,7 @@ def _apply_output(ds, jdir, sdir):
     res.pop('message', None)
     # not removing the submission files (for now), even if the last job output
     # might be removed now. Those submissions are tiny and could be resubmitted
-    return res
+    yield res
 
 
 def _doit(ds, submission, job, jworker, sworker):
