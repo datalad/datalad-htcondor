@@ -243,10 +243,17 @@ def _apply_output(ds, jdir, sdir):
 
     # TODO need to immitate PWD change, if needed
     # -> extract tarball
-    # TODO catch error and give meaningful message
-    stdout, stderr = Runner().run(
-        ['tar', '-xf', '{}'.format(jdir / 'output')],
-        cwd=ds.path)
+    try:
+        stdout, stderr = Runner().run(
+            ['tar', '-xf', '{}'.format(jdir / 'output')],
+            cwd=ds.path)
+    except CommandError as e:
+        yield dict(
+            common,
+            status='error',
+            message=("could not un-tar job results from '%s' at '%s': %s",
+                     str(jdir / 'output'), ds.path, exc_str(e)))
+        return
 
     # fake a run record, as if we would have executed locally
     for res in run_command(
