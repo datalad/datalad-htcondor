@@ -56,8 +56,10 @@ def test_basic(path):
     ds.rev_save()
     # all clean
     assert_repo_status(ds.path)
+    # starting point
+    start_commit = ds.repo.get_hexsha()
     res = ds.htc_prepare(
-        cmd='bash -c "ls -laR > here"'.format(ds.path),
+        cmd='bash -c "ls -laR > here2"'.format(ds.path),
         inputs=['*'],
         submit=True,
     )
@@ -76,8 +78,11 @@ def test_basic(path):
     # now apply the results to the original dataset
     assert_status('ok', ds.htc_results('merge', submission=submission))
 
+    # we got exactly one commit out of this one
+    eq_(start_commit, ds.repo.get_hexsha('HEAD~1'))
+
     # check whether the desired content is present
-    outfile_path = ds.pathobj / 'here'
+    outfile_path = ds.pathobj / 'here2'
     assert outfile_path.exists()
     ls_dump = outfile_path.read_text()
     # check that input files actually made it to the remote env
