@@ -39,6 +39,10 @@ fi
 # obtain input files
 # going through xargs will automatically adjust the number of calls
 # to `get` to not exceed the platform limit on max command length
+# TODO maybe it is more clever to actually use `datalad run` here
+# with the actual arguments that were given, but a NOOP command
+# so no command is made. The outcome would be a dataset that is
+# guaranteed to be as-ready as a local one would be
 xargs --null --arg-file input_files ./datalad.simg get -d dataset
 
 printf "preflight_completed" > status

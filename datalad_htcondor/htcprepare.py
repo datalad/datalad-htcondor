@@ -38,7 +38,10 @@ from datalad.interface.results import get_status_dict
 from datalad.support import json_py
 
 from datalad.support.param import Parameter
-from datalad.support.constraints import EnsureNone
+from datalad.support.constraints import (
+    EnsureNone,
+    EnsureChoice,
+)
 from datalad.support.exceptions import CommandError
 
 from datalad.utils import get_dataset_pwds as get_command_pwds
@@ -215,6 +218,22 @@ class HTCPrepare(Interface):
             working directory. If a dataset is given, the command will be
             executed in the root directory of this dataset.""",
             constraints=EnsureDataset() | EnsureNone()),
+        harness=Parameter(
+            args=("--harness",),
+            metavar='posixchirp|singularitydatalad',
+            constraints=EnsureChoice('posixchirp', 'singularitydatalad'),
+            doc="""harness for job input data preparation and result retrieval.
+            The harness is responsible for preparing the remote execution
+            environment to match the requirements of to-be-executed command,
+            and to extract the obtained results after job execution has
+            finished. 'posixchirp' (default): All input data is obtained via
+            DataLad in the LOCAL environment, data transfer to the execution
+            environment is done via HTCondor directly. The remote execution
+            environment need not have DataLad available. 'singularitydatalad':
+            DataLad is used in the REMOTE environment (from a Singularity
+            container that is automatically obtained, if needed) to prepare
+            execution. Only a minimal amount of data is transferred from the
+            local machine directly."""),
         jobcfg=Parameter(
             args=("--jobcfg",),
             doc="""name of pre-crafted job configuration that is used to
@@ -237,6 +256,7 @@ class HTCPrepare(Interface):
             explicit=False,
             message=None,
             sidecar=None,
+            harness='posixchirp',
             jobcfg='default',
             submit=False):
 
@@ -288,6 +308,8 @@ class HTCPrepare(Interface):
             job_args = split_cmd
         else:
             # link the container into the submission dir
+            # TODO with singularitydatalad harness this could be
+            # done on the execution side
             (submission_dir / 'singularity.simg').symlink_to(
                 ut.Path(singularity_job[0]).resolve())
             transfer_files_list.append('singularity.simg')
@@ -306,7 +328,7 @@ class HTCPrepare(Interface):
         # TODO ATM we only support a single job per cluster submission
         (submission_dir / 'job_0' / 'logs').mkdir(parents=True)
 
-        # TODO make job pre/post script selection configurable
+        # TODO switch by --harness argument
         with (submission_dir / 'pre.sh').open('wb') as f:
             f.write(resource_string(
                 'datalad_htcondor',
@@ -326,6 +348,7 @@ class HTCPrepare(Interface):
         )
 
         inputs = GlobbedPaths(inputs, pwd=pwd)
+        # TODO make conditional on --harness selection
         prepare_inputs(ds, inputs)
 
         # it could be that an input expression does not expand,
@@ -363,6 +386,10 @@ class HTCPrepare(Interface):
                 u'\0'.join(outputs) + u'\0')
             transfer_files_list.append('output_globs')
 
+        # TODO make conditional on switch to decide if execute node
+        # can get the dataset from its 'origin' location too
+        # if som just store the URL and switch to implied
+        # --harness singularitydataset
         (submission_dir / 'source_dataset_location').write_text(
             text_type(ds.pathobj) + op.sep)
         transfer_files_list.append('source_dataset_location')
