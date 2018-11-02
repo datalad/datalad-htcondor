@@ -11,14 +11,10 @@
 __docformat__ = 'restructuredtext'
 
 import logging
-import tempfile
 import shutil
 from six import (
-    iteritems,
     text_type,
 )
-
-from pkg_resources import resource_string
 
 import datalad.support.ansi_colors as ac
 from datalad.interface.base import (
@@ -26,11 +22,13 @@ from datalad.interface.base import (
     build_doc,
 )
 from datalad.interface.run import (
-    GlobbedPaths,
+    run_command,
     _format_cmd_shorty,
+    _install_and_reglob,
+    _unlock_or_remove,
+    GlobbedPaths,
 )
 from datalad.interface.utils import eval_results
-from datalad.interface.results import get_status_dict
 from datalad.support import json_py
 
 from datalad.support.param import Parameter
@@ -41,15 +39,10 @@ from datalad.support.constraints import (
 )
 from datalad.support.exceptions import CommandError
 
-from datalad.utils import get_dataset_pwds as get_command_pwds
-
 from datalad.cmd import Runner
 
 from datalad.dochelpers import exc_str
 
-from datalad_revolution.gitrepo import RevolutionGitRepo as GitRepo
-
-import datalad_revolution.utils as ut
 from datalad_revolution.dataset import (
     datasetmethod,
     require_dataset,
@@ -138,7 +131,7 @@ class HTCResults(Interface):
     @staticmethod
     def custom_result_renderer(res, **kwargs):  # pragma: no cover
         from datalad.ui import ui
-        if not res['status'] == 'ok':
+        if not res['status'] == 'ok' or not res['action'].startswith('htc_'):
             # logging reported already
             return
         action = res['action'].split('_')[-1]
@@ -175,11 +168,11 @@ def _remove_dir(ds, dir, _ignored=None):
     )
     try:
         shutil.rmtree(dir)
-        return dict(
+        yield dict(
             status='ok',
             **common)
     except Exception as e:
-        return dict(
+        yield dict(
             status='error',
             message=("could not remove directory '%s': %s",
                      common['path'], exc_str(e)),
@@ -187,9 +180,9 @@ def _remove_dir(ds, dir, _ignored=None):
 
 
 def _list_job(ds, jdir, sdir):
-    props = _list_submission(ds, sdir)
+    props = list(_list_submission(ds, sdir))[0]
     job_status_path = jdir / 'status'
-    return dict(
+    yield dict(
         props,
         state=job_status_path.read_text() if job_status_path.exists()
         else props.get('state', None),
@@ -207,7 +200,7 @@ def _list_submission(ds, sdir):
             cmd = None
     else:
         cmd = None
-    return dict(
+    yield dict(
         action='htc_result_list',
         status='ok',
         state=submission_status_path.read_text()
@@ -229,27 +222,54 @@ def _apply_output(ds, jdir, sdir):
         # anything below PY3.6 needs stringification
         runargs = json_py.load(str(args_path))
     except Exception as e:
-        return dict(
+        yield dict(
             common,
             status='error',
             message=("could not load submission arguments from '%s': %s",
-                     args_path, exc_str(e))
-        )
+                     args_path, exc_str(e)))
+        return
+    # TODO check recursive status to have dataset clean
+    # TODO have query limited to outputs if exlicit was given
+    # prep outputs (unlock or remove)
+    # COPY: this is a copy of the code from run_command
+    outputs = GlobbedPaths(runargs['outputs'], pwd=runargs['pwd'],
+                           expand=runargs['expand'] in ["outputs", "both"])
+    if outputs:
+        for res in _install_and_reglob(ds, outputs):
+            yield res
+        for res in _unlock_or_remove(ds, outputs.expand(full=True)):
+            yield res
+    # END COPY
+
     # TODO need to immitate PWD change, if needed
+    # -> extract tarball
     # TODO catch error and give meaningful message
-    ds.run(
-        'tar -xf "{}"'.format(jdir / 'output'),
-        on_failure='stop',
-        **{k: v for k, v in iteritems(runargs)
-           if k not in ('dataset', 'cmd', 'inputs', 'pwd')}
-    )
-    res = _remove_dir(ds, jdir)
+    stdout, stderr = Runner().run(
+        ['tar', '-xf', '{}'.format(jdir / 'output')],
+        cwd=ds.path)
+
+    # fake a run record, as if we would have executed locally
+    for res in run_command(
+            runargs['cmd'],
+            dataset=ds,
+            inputs=runargs['inputs'],
+            outputs=runargs['outputs'],
+            expand=runargs['expand'],
+            explicit=runargs['explicit'],
+            message=runargs['message'],
+            sidecar=runargs['sidecar'],
+            # TODO pwd, exit code
+            extra_info=None,
+            inject=True):
+        yield res
+
+    res = list(_remove_dir(ds, jdir))[0]
     res['action'] = 'htc_results_merge'
     res['status'] = 'ok'
     res.pop('message', None)
     # not removing the submission files (for now), even if the last job output
     # might be removed now. Those submissions are tiny and could be resubmitted
-    return res
+    yield res
 
 
 def _doit(ds, submission, job, jworker, sworker):
@@ -274,18 +294,30 @@ def _doit(ds, submission, job, jworker, sworker):
             if submission is None \
             else [sdir]:
         if sworker is not None and job is None:
-            yield dict(
-                sworker(ds, p),
-                submission=text_type(p.name)[7:],
-                **common)
+            for res in sworker(ds, p):
+                if res.get('action', '').startswith('htc_'):
+                    # polish our own results
+                    yield dict(
+                        res,
+                        submission=text_type(p.name)[7:],
+                        **common)
+                else:
+                    # let others pass through
+                    yield res
         if not p.is_dir() or not p.match('submit_*'):
             continue
         for j in p.iterdir() \
                 if job is None else [p / 'job_{0:d}'.format(job)]:
             if not j.is_dir():
                 continue
-            yield dict(
-                jworker(ds, j, p),
-                submission=text_type(p.name)[7:],
-                job=int(text_type(j.name)[4:]),
-                **common)
+            for res in jworker(ds, j, p):
+                if res.get('action', '').startswith('htc_'):
+                    # polish our own results
+                    yield dict(
+                        res,
+                        submission=text_type(p.name)[7:],
+                        job=int(text_type(j.name)[4:]),
+                        **common)
+                else:
+                    # let others pass through
+                    yield res

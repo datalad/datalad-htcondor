@@ -31,7 +31,7 @@ from datalad.interface.run import (
     Run,
     format_command,
     GlobbedPaths,
-    _install_and_reglob,
+    prepare_inputs,
 )
 from datalad.interface.utils import eval_results
 from datalad.interface.results import get_status_dict
@@ -248,7 +248,6 @@ class HTCPrepare(Interface):
             check_installed=True,
             purpose='preparing a remote command execution')
 
-        # TODO RF: straight copy from `run` should become usable here
         try:
             cmd_expanded = format_command(ds,
                                           cmd,
@@ -258,13 +257,12 @@ class HTCPrepare(Interface):
                                           outputs=outputs)
         except KeyError as exc:
             yield get_status_dict(
-                'run',
+                'htcprepare',
                 ds=ds,
                 status='impossible',
                 message=('command has an unrecognized placeholder: %s',
                          exc))
             return
-        # TODO end straight copy
 
         transfer_files_list = [
             'pre.sh', 'post.sh'
@@ -322,23 +320,13 @@ class HTCPrepare(Interface):
         make_executable(submission_dir / 'post.sh')
 
         # API support selection (bound dataset methods and such)
-        # internal iport to avoid circularities
+        # internal import to avoid circularities
         from datalad.api import (
             rev_status as status,
         )
 
-        # TODO RF: straight copy from `run`
         inputs = GlobbedPaths(inputs, pwd=pwd)
-
-        if inputs:
-            for res in _install_and_reglob(ds, inputs):
-                yield res
-            for res in ds.get(inputs.expand(full=True), on_failure="ignore"):
-                if res.get("state") == "absent":
-                    lgr.warning("Input does not exist: %s", res["path"])
-                else:
-                    yield res
-        # TODO end straight copy
+        prepare_inputs(ds, inputs)
 
         # it could be that an input expression does not expand,
         # because it doesn't match anything. In such a case
