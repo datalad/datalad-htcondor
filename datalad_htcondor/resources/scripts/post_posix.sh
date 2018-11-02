@@ -5,8 +5,8 @@
 
 set -e -u
 
-wdir="$(readlink -f .)"
-printf "postflight" > "${wdir}/status"
+wdir=`pwd`
+printf 'postflight\n' > "${wdir}/status"
 
 # TODO if outputfile specification is available in the exec dir
 # loop over it and prepare a return package. If not, return everything
@@ -38,14 +38,16 @@ if [ -f "$prep_stamp" ]; then
   # intentionally use no starting point
   # TODO this is missing the selector expression
   # that is built (broken) above
-  find \
-	  \( -type f -o -type l \) \
-    -newer "$prep_stamp" \
-    > "${wdir}/stamps/togethome"
+  find ( -type f -o -type l ) -newer "$prep_stamp" \
+    > "${wdir}/stamps/to_get_home"
 fi
 
-[ -s "${wdir}/stamps/togethome" ] && tar \
-  --files-from "${wdir}/stamps/togethome" \
+# TODO: This is not strictly POSIX. Though -z is non-POSIX, but is widely
+# implemented. However, --files-from (aka: -T) is a GNU-ism.
+# This should be adjusted to either use pax directly (the preferred POSIX
+# archive utility) or tar with xargs.
+[ -s "${wdir}/stamps/to_get_home" ] && tar \
+  --files-from "${wdir}/stamps/to_get_home" \
   -czf "${wdir}/output" || touch "${wdir}/output"
 
-printf "completed" > "${wdir}/status"
+printf 'completed\n' > "${wdir}/status"
