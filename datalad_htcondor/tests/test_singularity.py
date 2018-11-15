@@ -83,3 +83,28 @@ def test_basic(path):
         time.sleep(1)
     time.sleep(2)
     assert (submission_dir / 'job_0' / 'output').exists()
+
+
+@with_tempfile
+def test_singularitydatalad_harness(path):
+    ds = Dataset(path).rev_create()
+
+    (ds.pathobj / 'myfile1.txt').write_text(u'dummy1')
+    (ds.pathobj / 'myfile2.txt').write_text(u'dummy2')
+    ds.rev_save()
+    res = ds.htc_prepare(
+        cmd='bash -c "ls -laR > here"'.format(ds.path),
+        inputs=['*'],
+        harness='singularitydatalad',
+        submit=True,
+    )
+    assert res[-1]['action'] == 'htc_submit'
+    # TODO it is a shame that we cannot pass pathobj through datalad yet
+    submission_dir = ut.Path(res[-1]['path'])
+    # no input_files spec was written
+    assert (submission_dir / 'input_files').exists()
+    # we gotta wait till the results are in
+    while not (submission_dir / 'job_0' / 'logs' / 'err').exists():
+        time.sleep(1)
+    time.sleep(2)
+    assert (submission_dir / 'job_0' / 'output').exists()
