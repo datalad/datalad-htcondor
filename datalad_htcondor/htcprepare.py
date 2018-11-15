@@ -62,6 +62,16 @@ from datalad_revolution.dataset import (
 
 lgr = logging.getLogger('datalad.htcondor.htcprepare')
 
+harness_mapper = {
+    'posixchirp': {
+        'preflight_script': 'pre_posix_chirp.sh',
+        'postflight_script': 'post_posix.sh',
+    },
+    'singularitydatalad': {
+        'preflight_script': 'pre_singularity_datalad.sh',
+        'postflight_script': 'post_posix.sh',
+    },
+}
 
 submission_template = u"""\
 Universe     = vanilla
@@ -328,17 +338,18 @@ class HTCPrepare(Interface):
         # TODO ATM we only support a single job per cluster submission
         (submission_dir / 'job_0' / 'logs').mkdir(parents=True)
 
-        # TODO switch by --harness argument
         with (submission_dir / 'pre.sh').open('wb') as f:
             f.write(resource_string(
                 'datalad_htcondor',
-                'resources/scripts/pre_posix_chirp.sh'))
+                'resources/scripts/{}'.format(
+                    harness_mapper[harness]['preflight_script'])))
         make_executable(submission_dir / 'pre.sh')
 
         with (submission_dir / 'post.sh').open('wb') as f:
             f.write(resource_string(
                 'datalad_htcondor',
-                'resources/scripts/post_posix.sh'))
+                'resources/scripts/{}'.format(
+                    harness_mapper[harness]['postflight_script'])))
         make_executable(submission_dir / 'post.sh')
 
         # API support selection (bound dataset methods and such)
@@ -361,7 +372,6 @@ class HTCPrepare(Interface):
         # entire repo and dump a list of files to transfer
         if inputs:
             with (submission_dir / 'input_files').open('w') as f:
-                # TODO disable output renderer
                 for p in ds.rev_status(
                         path=inputs,
                         # TODO do we really want that True? I doubt it
@@ -369,7 +379,7 @@ class HTCPrepare(Interface):
                         recursive=False,
                         # we would have otherwise no idea
                         untracked='no',
-                        result_renderer=None):
+                        result_renderer='disabled'):
                     f.write(text_type(p['path']))
                     f.write(u'\0')
                 transfer_files_list.append('input_files')
@@ -388,7 +398,7 @@ class HTCPrepare(Interface):
 
         # TODO make conditional on switch to decide if execute node
         # can get the dataset from its 'origin' location too
-        # if som just store the URL and switch to implied
+        # if so just store the URL and switch to implied
         # --harness singularitydataset
         (submission_dir / 'source_dataset_location').write_text(
             text_type(ds.pathobj) + op.sep)
