@@ -27,6 +27,7 @@ from datalad.interface.base import (
     Interface,
     build_doc,
 )
+from datalad.interface.common_cfg import dirs as dirs
 from datalad.interface.run import (
     Run,
     format_command,
@@ -214,7 +215,22 @@ def get_submissions_dir(ds):
 
 @build_doc
 class HTCPrepare(Interface):
-    """TODO
+    """Prepare a command for remote execution
+
+    *Notes on command behavior*
+
+    Caching of DataLad singularity container
+      With the 'singularitydatalad' harness a singularity container with
+      a DataLad installation is needed. If no container image is sent
+      with the job, an image will be automatically downloaded from singularity
+      hub in the execution environment. If that is not desired (too slow,
+      forbidden, custom image is desired, etc), A locally cached container
+      image can be used instead. The configuarion variable
+      'datalad.htcprepare.datalad-simg' is queried and if the configured
+      path (default: $HOME/.cache/datalad/htcondor/datalad.simg) points to
+      an existing file, it will be transferred to serve as the containter
+      image to run preparation and inspection before and after the job
+      ran.
     """
     _params_ = dict(
         {k: v for k, v in iteritems(Run._params_)
@@ -297,7 +313,6 @@ class HTCPrepare(Interface):
         transfer_files_list = [
             'pre.sh', 'post.sh'
         ]
-
         # where all the submission packs live
         subroot_dir = get_submissions_dir(ds)
         subroot_dir.mkdir(parents=True, exist_ok=True)
@@ -306,6 +321,20 @@ class HTCPrepare(Interface):
         submission_dir = ut.Path(tempfile.mkdtemp(
             prefix='submit_', dir=text_type(subroot_dir)))
         submission = submission_dir.name[7:]
+
+        if harness == 'singularitydatalad':
+            # do we have an image cached at the configured
+            # location
+            dlsimg_location = ds.config.obtain(
+                'datalad.htcprepare.datalad-simg',
+                default=str(ut.Path(dirs.user_cache_dir) /
+                    'htcondor' / 'datalad.simg'))
+            if op.exists(dlsimg_location):
+                lgr.info("Using cached DataLad singularity from '%s'",
+                         dlsimg_location)
+                (submission_dir / 'datalad.simg').symlink_to(
+                    ut.Path(dlsimg_location).resolve())
+                transfer_files_list.append('datalad.simg')
 
         split_cmd = shlex.split(cmd_expanded)
         # is this a singularity job?
