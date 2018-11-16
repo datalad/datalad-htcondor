@@ -315,7 +315,7 @@ def _doit(ds, submission, job, jworker, sworker):
             continue
         for j in p.iterdir() \
                 if job is None else [p / 'job_{0:d}'.format(job)]:
-            if not j.is_dir():
+            if not j.is_dir() or not j.match('job_*'):
                 continue
             for res in jworker(ds, j, p):
                 if res.get('action', '').startswith('htc_'):

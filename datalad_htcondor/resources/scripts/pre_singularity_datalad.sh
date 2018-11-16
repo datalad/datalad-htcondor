@@ -10,15 +10,6 @@ printf "preflight" > status
 # minimum input/output setup
 mkdir stamps
 
-# if there is no input spec we can go home early
-if [ ! -f input_files ]; then
-  printf "preflight_completed" > status
-  touch stamps/prep_complete
-  # have a starting point for the job and the postflight script
-  mkdir dataset
-  exit 0
-fi
-
 # if the datalad singularity image did not come with the job, get it
 # from singularity-hub
 if [ ! -f datalad.simg ]; then
@@ -33,17 +24,21 @@ srcdataset="$(cat source_dataset_location)"
 # if srcdataset is set to 'dataset' the dataset has already been sent
 # with the submission, and we don't need to obtain it
 if [ x"${srcdataset}" != xdataset ]; then
-  ./datalad.simg install -s ${srcdataset} dataset
+  singularity run \
+    --containall -H "$(readlink -f .)" \
+    ./datalad.simg install -s ${srcdataset} dataset
 fi
 
 # obtain input files
-# going through xargs will automatically adjust the number of calls
-# to `get` to not exceed the platform limit on max command length
-# TODO maybe it is more clever to actually use `datalad run` here
-# with the actual arguments that were given, but a NOOP command
-# so no command is made. The outcome would be a dataset that is
-# guaranteed to be as-ready as a local one would be
-xargs --null --arg-file input_files ./datalad.simg get -d dataset
+# actually use `datalad run` here with the original input args
+# but a NOOP command, so nothing is actually changed.
+# The outcome would be a dataset that is guaranteed to be as-ready as
+# a local one would have been
+singularity exec \
+  --containall -H "$(readlink -f .)" \
+  ./datalad.simg \
+  python3 -c \
+  'import os.path as op; from datalad.api import (run, Dataset); from datalad.support import json_py; ds=Dataset("dataset"); args=json_py.load("runargs.json"); ds.run(cmd=":", inputs=[op.relpath(i, args["pwd"]) for i in args.get("inputs", None)])'
 
 printf "preflight_completed" > status
 touch stamps/prep_complete

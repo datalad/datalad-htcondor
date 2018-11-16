@@ -260,6 +260,11 @@ class HTCPrepare(Interface):
             container that is automatically obtained, if needed) to prepare
             execution. Only a minimal amount of data is transferred from the
             local machine directly."""),
+        from_sibling=Parameter(
+            args=("-s", "--from-sibling",),
+            metavar='NAME',
+            doc="""remote execution will pull all information (incl. the
+            dataset repository) from this configured dataset sibling"""),
         jobcfg=Parameter(
             args=("--jobcfg",),
             doc="""name of pre-crafted job configuration that is used to
@@ -283,8 +288,22 @@ class HTCPrepare(Interface):
             message=None,
             sidecar=None,
             harness='posixchirp',
+            from_sibling=None,
             jobcfg='default',
             submit=False):
+
+        # API support selection (bound dataset methods and such)
+        # internal import to avoid circularities
+        from datalad.api import (
+            rev_status as status,
+            siblings,
+        )
+
+        # basic and cheap sanity checks first
+        if not cmd:
+            # possibly relax this later on, when a command could
+            # come from a config setting
+            raise ValueError('no command specified')
 
         # TODO makes sure a different rel_pwd is handled properly on the remote end
         pwd, rel_pwd = get_command_pwds(dataset)
@@ -293,6 +312,49 @@ class HTCPrepare(Interface):
             dataset,
             check_installed=True,
             purpose='preparing a remote command execution')
+
+        common_res = get_status_dict(
+            'htcprepare', ds=ds, logger=lgr)
+
+        if from_sibling:
+            # first check repo state, no need to go recursive, subdataset
+            # will show up as tainted anyways
+            if ds.repo.diff(fr='HEAD', to=None):
+                yield dict(
+                    common_res,
+                    status='error',
+                    message=\
+                    'the local dataset state can not be obtained from '
+                    'a remote sibling, as the dataset has unsaved changes: '
+                    'save changes and publish them first.')
+                return
+            sibling = ds.siblings(
+                name=from_sibling,
+                get_annex_info=False,
+                result_renderer='disabled',
+                return_type='item-or-list',
+                on_failure='ignore')
+            if not sibling or sibling.get('status', None) != 'ok' \
+                    or 'url' not in sibling or not sibling['url']:
+                yield dict(
+                    common_res,
+                    status='error',
+                    message=("sibling '%s' not available as a remote source",
+                             from_sibling))
+                return
+            # we know we have a sibling and a URL for it
+            # does the remote have the local HEAD?
+            if not ds.repo.is_ancestor('HEAD', sibling['name']):
+                yield dict(
+                    common_res,
+                    status='error',
+                    message=(
+                        'the local HEAD commit %s is not available at the '
+                        "remote sibing '%s', please publish it first.",
+                        ds.repo.get_hexsha(), from_sibling))
+                return
+            # work with the URL from now
+            from_sibling = sibling['url']
 
         try:
             cmd_expanded = format_command(ds,
@@ -311,7 +373,7 @@ class HTCPrepare(Interface):
             return
 
         transfer_files_list = [
-            'pre.sh', 'post.sh'
+            'pre.sh', 'post.sh', 'runargs.json'
         ]
         # where all the submission packs live
         subroot_dir = get_submissions_dir(ds)
@@ -386,12 +448,6 @@ class HTCPrepare(Interface):
                     harness_mapper[harness]['postflight_script'])))
         make_executable(submission_dir / 'post.sh')
 
-        # API support selection (bound dataset methods and such)
-        # internal import to avoid circularities
-        from datalad.api import (
-            rev_status as status,
-        )
-
         inputs = GlobbedPaths(inputs, pwd=pwd)
         # TODO make conditional on --harness selection
         prepare_inputs(ds, inputs)
@@ -404,7 +460,8 @@ class HTCPrepare(Interface):
                   if op.lexists(p)]
         # now figure out what matches the remaining paths in the
         # entire repo and dump a list of files to transfer
-        if inputs:
+        # but not if we get everything from a remote anyways
+        if not from_sibling and inputs:
             with (submission_dir / 'input_files').open('w') as f:
                 for p in ds.rev_status(
                         path=inputs,
@@ -430,12 +487,12 @@ class HTCPrepare(Interface):
                 u'\0'.join(outputs) + u'\0')
             transfer_files_list.append('output_globs')
 
-        # TODO make conditional on switch to decide if execute node
-        # can get the dataset from its 'origin' location too
-        # if so just store the URL and switch to implied
-        # --harness singularitydataset
+        # TODO switch to implied --harness singularitydataset with
+        # from_sibling
         (submission_dir / 'source_dataset_location').write_text(
-            text_type(ds.pathobj) + op.sep)
+            from_sibling
+            if from_sibling
+            else (text_type(ds.pathobj) + op.sep))
         transfer_files_list.append('source_dataset_location')
 
         with (submission_dir / 'cluster.submit').open('w') as f:

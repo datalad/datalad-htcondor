@@ -4,6 +4,7 @@ from datalad.api import (
     rev_create as create,
     containers_add,
     htc_prepare,
+    install,
 )
 from datalad_revolution.dataset import RevolutionDataset as Dataset
 import datalad_revolution.utils as ut
@@ -11,6 +12,9 @@ from datalad.tests.utils import (
     assert_result_count,
     with_tempfile,
     eq_,
+    assert_status,
+    assert_in,
+    assert_not_in,
 )
 from datalad.utils import on_windows
 from datalad_htcondor.htcprepare import get_singularity_jobspec
@@ -85,6 +89,8 @@ def test_basic(path):
     assert (submission_dir / 'job_0' / 'output').exists()
 
 
+
+
 @with_tempfile
 def test_singularitydatalad_harness(path):
     ds = Dataset(path).rev_create()
@@ -108,3 +114,50 @@ def test_singularitydatalad_harness(path):
         time.sleep(1)
     time.sleep(2)
     assert (submission_dir / 'job_0' / 'output').exists()
+
+
+@with_tempfile
+def test_from_remote_sibling(path):
+    install(source='https://github.com/datalad/datalad-testrepo.git',
+            path=path)
+    # install does not give us next-gen datasets
+    ds = Dataset(path)
+    start_commit = ds.repo.get_hexsha()
+    res = ds.htc_prepare(
+        cmd='bash -c "file -L {inputs} > result"',
+        inputs=['inannex/animated.gif'],
+        harness='singularitydatalad',
+        from_sibling='origin',
+        submit=True,
+    )
+    assert_status('ok', res)
+
+    # we gotta wait till the results are in
+    submission = res[-1]['submission']
+    submission_dir = ut.Path(res[-1]['path'])
+    while not (ds.htc_results(
+            'list',
+            submission=submission,
+            job=0,
+            return_type='item-or-list')['state'] == 'completed'):
+        time.sleep(2)
+    assert (submission_dir / 'job_0' / 'output').exists()
+
+    # now apply the results to the original dataset
+    assert_status('ok', ds.htc_results('merge', submission=submission))
+
+    # we got exactly one commit out of this one
+    eq_(start_commit, ds.repo.get_hexsha('HEAD~1'))
+
+    # check whether the desired content is present
+    outfile_path = ds.pathobj / 'result'
+    assert outfile_path.exists()
+    assert_in('GIF image', outfile_path.read_text())
+
+    # check that no longer get was performed
+    # because it lives in a 'web' special remote, the local annex
+    # doesn't even have a key for this file
+    # (it would have, after it was obtain)
+    assert_not_in(
+        'key',
+        ds.repo.annexstatus(paths=['inannex/animated.gif']))
