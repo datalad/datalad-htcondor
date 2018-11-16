@@ -5,7 +5,7 @@
 #
 # Changelog
 # ---------
-# 0.0
+# 0.1
 #  - Pre-release
 #
 #######################################################################
@@ -27,7 +27,8 @@ From:neurodebian:latest
     locale-gen
 
     # bare essentials to pull everything else in
-    eatmydata apt-get -y install --no-install-recommends git git-annex-standalone python3-pip
+    # netbase is needed to have meaningful protocoll definitions
+    eatmydata apt-get -y install --no-install-recommends git git-annex-standalone python3-pip netbase
 
     eatmydata apt-get -y install --no-install-recommends python3-setuptools python3-wheel less rsync git-remote-gcrypt aria2
 
