@@ -1,4 +1,5 @@
 import time
+import os
 
 from datalad.api import (
     rev_create as create,
@@ -140,6 +141,8 @@ def test_from_remote_sibling(path):
             submission=submission,
             job=0,
             return_type='item-or-list')['state'] == 'completed'):
+        os.system('condor_status')
+        os.system('condor_q')
         time.sleep(2)
     assert (submission_dir / 'job_0' / 'output').exists()
 
