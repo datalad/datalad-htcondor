@@ -167,7 +167,7 @@ def _remove_dir(ds, dir, _ignored=None):
         path=text_type(dir),
     )
     try:
-        shutil.rmtree(dir)
+        shutil.rmtree(text_type(dir))
         yield dict(
             status='ok',
             **common)
