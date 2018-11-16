@@ -56,8 +56,10 @@ install:
   # So we could test under sudo -E with PATH pointing to installed location
   - sudo sed -i -e 's/^Defaults.*secure_path.*$//' /etc/sudoers
   # give condor some time to fire up
+  # pre-stage the datalad singularity container to streamline repeated use
+  - mkdir -p ~/.cache/datalad/htcondor/ && cd ~/.cache/datalad/htcondor/ && singularity pull -n datalad.simg shub://datalad/datalad-htcondor:latest; cd -
+  # assert that condor is up now by performing a test submission
   - condor_status
-  # perform a test submission
   - condor_run 'uname -a'
 
 script:
