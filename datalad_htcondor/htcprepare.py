@@ -544,21 +544,13 @@ class HTCPrepare(Interface):
 
         if submit:
             try:
-                Runner(cwd=text_type(submission_dir)).run(
-                    ['condor_submit', 'cluster.submit'],
-                    log_stdout=False,
+                out, err = Runner(cwd=text_type(submission_dir)).run(
+                    ['condor_submit', '-verbose', 'cluster.submit'],
+                    log_stdout=True,
                     log_stderr=False,
                     expect_stderr=True,
                     expect_fail=True,
                 )
-                (submission_dir / 'status').write_text(u'submitted')
-                yield get_status_dict(
-                    action='htc_submit',
-                    status='ok',
-                    submission=submission,
-                    refds=text_type(ds.pathobj),
-                    path=text_type(submission_dir),
-                    logger=lgr)
             except CommandError as e:
                 yield get_status_dict(
                     action='htc_submit',
@@ -568,3 +560,31 @@ class HTCPrepare(Interface):
                     refds=text_type(ds.pathobj),
                     path=text_type(submission_dir),
                     logger=lgr)
+                return
+            # some ad-hoc classad parser to report maximum info
+            classads = None
+            classad = None
+            for line in out.splitlines():
+                if line.startswith('** '):
+                    if classads is None:
+                        classads = {}
+                    classad = {}
+                    classads[line[8:-1]] = classad
+                if classads is None or not line.strip():
+                    continue
+                try:
+                    sepidx = line.index('=')
+                except ValueError:
+                    # cannot handle this
+                    continue
+                classad[line[:sepidx - 1]] = line[sepidx + 2:].strip('"')
+
+            (submission_dir / 'status').write_text(u'submitted')
+            yield get_status_dict(
+                action='htc_submit',
+                status='ok',
+                submission=submission,
+                classads=classads,
+                refds=text_type(ds.pathobj),
+                path=text_type(submission_dir),
+                logger=lgr)
