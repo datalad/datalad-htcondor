@@ -22,6 +22,8 @@ env:
     # Special settings/helper for combined coverage from special remotes execution
     - COVERAGE=coverage
     - DATALAD_DATASETS_TOPURL=http://datasets-tests.datalad.org
+    # explicit setting to avoid HOME wrangling effects later on
+    - DATALAD_HTCPREPARE_DATALAD__SIMG=~/.cache/datalad/htcondor
   matrix:
     - DATALAD_REPO_VERSION=5
     - DATALAD_REPO_VERSION=6
@@ -57,7 +59,7 @@ install:
   - sudo sed -i -e 's/^Defaults.*secure_path.*$//' /etc/sudoers
   # give condor some time to fire up
   # pre-stage the datalad singularity container to streamline repeated use
-  - mkdir -p ~/.cache/datalad/htcondor/ && cd ~/.cache/datalad/htcondor/ && singularity pull -n datalad.simg shub://datalad/datalad-htcondor:latest; cd -
+  - mkdir -p "$DATALAD_HTCPREPARE_DATALAD__SIMG" && cd "$DATALAD_HTCPREPARE_DATALAD__SIMG" && singularity pull -n datalad.simg shub://datalad/datalad-htcondor:latest; cd -
   # assert that condor is up now by performing a test submission
   - condor_status
   - condor_run 'uname -a'

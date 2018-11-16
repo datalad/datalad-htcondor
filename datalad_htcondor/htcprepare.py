@@ -335,6 +335,11 @@ class HTCPrepare(Interface):
                 (submission_dir / 'datalad.simg').symlink_to(
                     ut.Path(dlsimg_location).resolve())
                 transfer_files_list.append('datalad.simg')
+            else:
+                lgr.info("No cached DataLad singularity found at '%s', "
+                         "will be downloaded from Singularity-Hub "
+                         "in the remote environment.",
+                         dlsimg_location)
 
         split_cmd = shlex.split(cmd_expanded)
         # is this a singularity job?
