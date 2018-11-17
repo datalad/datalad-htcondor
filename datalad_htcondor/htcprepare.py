@@ -361,19 +361,9 @@ class HTCPrepare(Interface):
                     message=("sibling '%s' not available as a remote source",
                              from_sibling))
                 return
-            # TODO, bring back with a git fetch remote commit test
-            # we know we have a sibling and a URL for it
-            # does the remote have the local HEAD?
-            #if not ds.repo.is_ancestor('HEAD', sibling['name']):
-            #    import pdb; pdb.set_trace()
-            #    yield dict(
-            #        common_res,
-            #        status='error',
-            #        message=(
-            #            'the local HEAD commit %s is not available at the '
-            #            "remote sibling '%s', please publish it first.",
-            #            ds.repo.get_hexsha(), from_sibling))
-            #    return
+            # TODO, bring back test with a git fetch remote commit test
+            # to not have a job fail with a cryptic message
+
             # work with the URL from now
             from_sibling = sibling['url']
         elif harness == 'singularitydatalad':
@@ -391,6 +381,13 @@ class HTCPrepare(Interface):
             )
         if harness is None:
             harness = 'posixchirp'
+        elif harness == 'singularitydatalad':
+            # rec record the local HEAD commit in the submission
+            # the preflight script will verify that it can be checked out
+            # or will blow up
+            (submission_dir / 'commit').write_text(
+                ds.repo.get_hexsha())
+            transfer_files_list.append('commit')
 
         try:
             cmd_expanded = format_command(ds,

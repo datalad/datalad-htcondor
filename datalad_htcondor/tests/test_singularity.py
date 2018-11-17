@@ -95,7 +95,7 @@ def test_singularitydatalad_harness(path):
 
 @with_tempfile
 def test_from_remote_sibling(path):
-    install(source='https://github.com/datalad/datalad-testrepo.git',
+    install(source='https://github.com/datalad/testrepo--minimalds.git',
             path=path)
     # install does not give us next-gen datasets
     ds = Dataset(path)
@@ -127,3 +127,14 @@ def test_from_remote_sibling(path):
     assert_not_in(
         'key',
         ds.repo.annexstatus(paths=['inannex/animated.gif']))
+
+    # running another command after the merge will blow up,
+    # because the local commit is not available from the
+    # remote end
+    submission, submission_dir = submit_watcher(
+        ds,
+        cmd='bash -c "file -L {inputs} > result"',
+        inputs=['inannex/animated.gif'],
+        harness='singularitydatalad',
+        from_sibling='origin',
+    )

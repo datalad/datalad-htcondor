@@ -5,6 +5,9 @@
 
 set -e -u
 
+# fail if we cannot verify that the job was at least attempted
+[ ! -f stamps/job_start ] && exit 101 || true
+
 wdir="$(readlink -f .)"
 printf "postflight" > "${wdir}/status"
 
@@ -44,8 +47,12 @@ if [ -f "$prep_stamp" ]; then
     > "${wdir}/stamps/togethome"
 fi
 
+touch ../stamps/post_result_detection
+
 [ -s "${wdir}/stamps/togethome" ] && tar \
   --files-from "${wdir}/stamps/togethome" \
   -czf "${wdir}/output" || touch "${wdir}/output"
 
-printf "completed" > "${wdir}/status"
+touch ../stamps/post_complete
+
+[ ! -f ../stamps/job_success ] && printf "failed" > "${wdir}/status" || printf "completed" > "${wdir}/status"

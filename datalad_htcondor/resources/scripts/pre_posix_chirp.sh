@@ -4,7 +4,7 @@
 # version. condor_chirp is used to obtain the input files, based
 # on a list that the job supplied
 
-set -e -u
+set -e -u -x
 
 printf "preflight" > status
 # minimum input/output setup
