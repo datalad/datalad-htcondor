@@ -33,8 +33,44 @@ def condor_q_json(proc_id):
     return rec[0] if isinstance(rec, list) and len(rec) == 1 else rec
 
 
+def condor_q_fallback(proc_id):
+    out, err = Runner().run(
+        ['condor_q', '-long', proc_id],
+        log_stdout=True,
+        log_stderr=False,
+        expect_fail=False,
+    )
+    if not out:
+        return None
+    rec = {}
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        try:
+            sepidx = line.index('=')
+        except ValueError:
+            # cannot handle this
+            continue
+        val = line[sepidx + 2:].strip('"')
+        try:
+            val = int(val)
+        except ValueError:
+            try:
+                val = float(val)
+            except ValueError:
+                pass
+        rec[line[:sepidx - 1]] = val
+    return rec
+
+
 def submit_watcher(ds, **kwargs):
-    condor_q = condor_q_json
+    out, err = Runner().run(
+        ['condor_q', '-h'],
+        log_stdout=True,
+    )
+    # decide which condor_q wrapper we can use here
+    condor_q = condor_q_json if '-json' in out else condor_q_fallback
+
     res = ds.htc_prepare(
         submit=True,
         **kwargs
