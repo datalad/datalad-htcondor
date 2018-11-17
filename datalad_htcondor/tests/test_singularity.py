@@ -76,24 +76,6 @@ def test_basic(path):
 
 
 @with_tempfile
-def test_singularitydatalad_harness(path):
-    ds = Dataset(path).rev_create()
-
-    (ds.pathobj / 'myfile1.txt').write_text(u'dummy1')
-    (ds.pathobj / 'myfile2.txt').write_text(u'dummy2')
-    ds.rev_save()
-    submission, submission_dir = submit_watcher(
-        ds,
-        cmd='bash -c "ls -laR > here"'.format(ds.path),
-        inputs=['*'],
-        harness='singularitydatalad',
-    )
-    # no input_files spec was written
-    assert (submission_dir / 'input_files').exists()
-    assert (submission_dir / 'job_0' / 'output').exists()
-
-
-@with_tempfile
 def test_from_remote_sibling(path):
     install(source='https://github.com/datalad/testrepo--minimalds.git',
             path=path)
@@ -138,3 +120,10 @@ def test_from_remote_sibling(path):
         harness='singularitydatalad',
         from_sibling='origin',
     )
+    # job result is reported as a non-success
+    eq_(
+        ds.htc_results(
+            'list',
+            submission=submission,
+            return_type='list')[-1]['state'],
+        'preflight_notcompleted')

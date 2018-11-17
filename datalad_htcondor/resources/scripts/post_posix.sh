@@ -5,6 +5,11 @@
 
 set -e -u
 
+# we always have to give condor something under the name, or it
+# will fail as a requested output is missing, but we want to
+# handle such errors ourselves
+mkdir -p output
+
 # fail if we cannot verify that the job was at least attempted
 [ ! -f stamps/job_start ] && exit 101 || true
 
@@ -51,7 +56,7 @@ touch ../stamps/post_result_detection
 
 [ -s "${wdir}/stamps/togethome" ] && tar \
   --files-from "${wdir}/stamps/togethome" \
-  -czf "${wdir}/output" || touch "${wdir}/output"
+  -czf "${wdir}/output/changes.tar.gz" || true
 
 touch ../stamps/post_complete
 

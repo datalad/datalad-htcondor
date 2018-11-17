@@ -245,7 +245,9 @@ def _apply_output(ds, jdir, sdir):
     # -> extract tarball
     try:
         stdout, stderr = Runner().run(
-            ['tar', '-xf', '{}'.format(jdir / 'output')],
+            # TODO generalize to be able to deal with other output
+            # forms (XZ compression, etc.)
+            ['tar', '-xf', '{}'.format(jdir / 'output' / 'changes.tar.gz')],
             cwd=ds.path)
     except CommandError as e:
         yield dict(

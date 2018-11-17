@@ -20,7 +20,7 @@ job_status_map = {
 }
 
 
-def condor_q(proc_id):
+def condor_q_json(proc_id):
     out, err = Runner().run(
         ['condor_q', '-json', proc_id],
         log_stdout=True,
@@ -34,10 +34,12 @@ def condor_q(proc_id):
 
 
 def submit_watcher(ds, **kwargs):
+    condor_q = condor_q_json
     res = ds.htc_prepare(
         submit=True,
         **kwargs
     )
+
     assert_status('ok', res)
     assert res[-1]['action'] == 'htc_submit'
 
