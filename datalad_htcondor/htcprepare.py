@@ -338,14 +338,16 @@ class HTCPrepare(Interface):
             harness = 'singularitydatalad'
             # first check repo state, no need to go recursive, subdataset
             # will show up as tainted anyways
-            if ds.repo.diff(fr='HEAD', to=None):
+            diff = ds.repo.diff(fr='HEAD', to=None)
+            if diff:
                 yield dict(
                     common_res,
                     status='error',
-                    message=\
-                    'the local dataset state can not be obtained from '
-                    'a remote sibling, as the dataset has unsaved changes: '
-                    'save changes and publish them first.')
+                    message=(
+                        'the local dataset state can not be obtained from '
+                        'a remote sibling, as the dataset has unsaved '
+                        'changes: save changes and publish them first: %s',
+                        diff))
                 return
             sibling = ds.siblings(
                 name=from_sibling,
