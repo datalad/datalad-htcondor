@@ -10,6 +10,9 @@ printf "preflight" > status
 # minimum input/output setup
 mkdir stamps
 
+curdir="$(readlink -f .)"
+singularity_opts="--containall -H $curdir -W $curdir"
+
 # if the datalad singularity image did not come with the job, get it
 # from singularity-hub
 if [ ! -f datalad.simg ]; then
@@ -21,11 +24,9 @@ fi
 # can handle
 srcdataset="$(cat source_dataset_location)"
 
-# if srcdataset is set to 'dataset' the dataset has already been sent
-# with the submission, and we don't need to obtain it
-if [ x"${srcdataset}" != xdataset ]; then
-  singularity run \
-    --containall -H "$(readlink -f .)" \
+# if there is no dataset yet, we need to install it
+if [ ! -d dataset ]; then
+  singularity run $singularity_opts \
     ./datalad.simg install -s ${srcdataset} dataset
 fi
 
@@ -34,8 +35,12 @@ fi
 # but a NOOP command, so nothing is actually changed.
 # The outcome would be a dataset that is guaranteed to be as-ready as
 # a local one would have been
-singularity exec \
-  --containall -H "$(readlink -f .)" \
+# we need to git reset --hard, because, if transfered by condor, the dataset
+# is missing all dangling symlinks
+singularity exec $singularity_opts \
+  ./datalad.simg \
+  git -C dataset reset --hard
+singularity exec $singularity_opts \
   ./datalad.simg \
   python3 -c \
   'import os.path as op; from datalad.api import (run, Dataset); from datalad.support import json_py; ds=Dataset("dataset"); args=json_py.load("runargs.json"); ds.run(cmd=":", inputs=[op.relpath(i, args["pwd"]) for i in args.get("inputs", None)])'

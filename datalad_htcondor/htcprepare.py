@@ -101,7 +101,7 @@ initial_dir = job_$(Process)
 
 # paths must be relative to initial dir
 transfer_input_files = {transfer_files_list}
-transfer_output_files = status,stamps,output
+transfer_output_files = status,stamps,output,preflight.log,postflight.log
 
 # paths are relative to a job's initial dir
 Error   = logs/err
@@ -118,12 +118,12 @@ submission_defaults = dict(
     environment='',
     ioproxy_flag='true',
     # name in remote execute dir
-    preflight_script='pre.sh',
-    preflight_script_args='',
+    preflight_script='prepost_runner.sh',
+    preflight_script_args="-c './pre.sh > preflight.log 2>&1'",
     preflight_script_env='',
     # name in remote execute dir
-    postflight_script='post.sh',
-    postflight_script_args='',
+    postflight_script='prepost_runner.sh',
+    postflight_script_args="-c './post.sh > postflight.log 2>&1'",
     postflight_script_env='',
     # TODO must be true ATM, although this is a bummer
     # with false the condor job runs as 'nobody' (with /nonexistent
@@ -247,7 +247,7 @@ class HTCPrepare(Interface):
         harness=Parameter(
             args=("--harness",),
             metavar='posixchirp|singularitydatalad',
-            constraints=EnsureChoice('posixchirp', 'singularitydatalad'),
+            constraints=EnsureChoice('posixchirp', 'singularitydatalad') | EnsureNone(),
             doc="""harness for job input data preparation and result retrieval.
             The harness is responsible for preparing the remote execution
             environment to match the requirements of to-be-executed command,
@@ -287,7 +287,7 @@ class HTCPrepare(Interface):
             explicit=False,
             message=None,
             sidecar=None,
-            harness='posixchirp',
+            harness=None,
             from_sibling=None,
             jobcfg='default',
             submit=False):
@@ -316,7 +316,26 @@ class HTCPrepare(Interface):
         common_res = get_status_dict(
             'htcprepare', ds=ds, logger=lgr)
 
+        # what will always be transferred
+        transfer_files_list = [
+            'pre.sh', 'post.sh', 'runargs.json', 'prepost_runner.sh'
+        ]
+
+        # where all the submission packs live
+        subroot_dir = get_submissions_dir(ds)
+        subroot_dir.mkdir(parents=True, exist_ok=True)
+
+        # location of to-be-created submission
+        submission_dir = ut.Path(tempfile.mkdtemp(
+            prefix='submit_', dir=text_type(subroot_dir)))
+        submission = submission_dir.name[7:]
+
         if from_sibling:
+            if harness not in (None, 'singularitydatalad'):
+                raise ValueError(
+                    '--harness selection conflicts with --from-sibling, ',
+                    'implies --harness singularitydatalad')
+            harness = 'singularitydatalad'
             # first check repo state, no need to go recursive, subdataset
             # will show up as tainted anyways
             if ds.repo.diff(fr='HEAD', to=None):
@@ -342,19 +361,36 @@ class HTCPrepare(Interface):
                     message=("sibling '%s' not available as a remote source",
                              from_sibling))
                 return
+            # TODO, bring back with a git fetch remote commit test
             # we know we have a sibling and a URL for it
             # does the remote have the local HEAD?
-            if not ds.repo.is_ancestor('HEAD', sibling['name']):
-                yield dict(
-                    common_res,
-                    status='error',
-                    message=(
-                        'the local HEAD commit %s is not available at the '
-                        "remote sibing '%s', please publish it first.",
-                        ds.repo.get_hexsha(), from_sibling))
-                return
+            #if not ds.repo.is_ancestor('HEAD', sibling['name']):
+            #    import pdb; pdb.set_trace()
+            #    yield dict(
+            #        common_res,
+            #        status='error',
+            #        message=(
+            #            'the local HEAD commit %s is not available at the '
+            #            "remote sibling '%s', please publish it first.",
+            #            ds.repo.get_hexsha(), from_sibling))
+            #    return
             # work with the URL from now
             from_sibling = sibling['url']
+        elif harness == 'singularitydatalad':
+            # this harness needs a repository on the execution side
+            # as --from-sibling wasn't given, we need to create a
+            # lightweight one to be sent along with the job
+            transfer_files_list.append('dataset')
+            # make a shallow clone, that includes the tip of all branch
+            # (important to have at least the git-annex branch in
+            # addition to what is checked out)
+            Runner().run(
+                ['git', 'clone', '--depth', '1', '--no-single-branch',
+                 ds.path, str(submission_dir / 'dataset')],
+                expect_fail=False,
+            )
+        if harness is None:
+            harness = 'posixchirp'
 
         try:
             cmd_expanded = format_command(ds,
@@ -372,18 +408,12 @@ class HTCPrepare(Interface):
                          exc))
             return
 
-        transfer_files_list = [
-            'pre.sh', 'post.sh', 'runargs.json'
-        ]
-        # where all the submission packs live
-        subroot_dir = get_submissions_dir(ds)
-        subroot_dir.mkdir(parents=True, exist_ok=True)
-
-        # location of to-be-created submission
-        submission_dir = ut.Path(tempfile.mkdtemp(
-            prefix='submit_', dir=text_type(subroot_dir)))
-        submission = submission_dir.name[7:]
-
+        # we always need the runner for the pre/post scripts
+        with (submission_dir / 'prepost_runner.sh').open('wb') as f:
+            f.write(resource_string(
+                'datalad_htcondor',
+                'resources/scripts/prepost_runner.sh'))
+        make_executable(submission_dir / 'prepost_runner.sh')
         if harness == 'singularitydatalad':
             # do we have an image cached at the configured
             # location
